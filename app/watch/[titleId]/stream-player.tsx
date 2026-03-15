@@ -97,6 +97,28 @@ function IconVolume({ muted }: { muted: boolean }) {
   );
 }
 
+function IconReplay10() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M12 5V2L7 6l5 4V7c2.76 0 5 2.24 5 5a5 5 0 01-9.8 1.5H5.14A7 7 0 0012 19a7 7 0 000-14z" />
+      <text x="12" y="15" textAnchor="middle" fontSize="6" fontWeight="700" fill="currentColor">
+        10
+      </text>
+    </svg>
+  );
+}
+
+function IconForward10() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M12 5V2l5 4-5 4V7a5 5 0 11-4.8 6.5H5.14A7 7 0 1012 5z" />
+      <text x="12" y="15" textAnchor="middle" fontSize="6" fontWeight="700" fill="currentColor">
+        10
+      </text>
+    </svg>
+  );
+}
+
 export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -105,7 +127,8 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
   const qoeBufferRef = useRef<QoeEvent[]>([]);
   const peerHitRatioRef = useRef(0);
   const lastTapRef = useRef<{ left: number; right: number }>({ left: 0, right: 0 });
-  const skipFlashTimeoutRef = useRef<number | null>(null);
+  const skipOverlayTimeoutRef = useRef<number | null>(null);
+  const skipPulseTimeoutRef = useRef<number | null>(null);
   const controlsHideTimeoutRef = useRef<number | null>(null);
 
   const [status, setStatus] = useState("Initializing player...");
@@ -122,7 +145,8 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPreviewSec, setSeekPreviewSec] = useState<number | null>(null);
-  const [skipFlash, setSkipFlash] = useState<"-10s" | "+10s" | null>(null);
+  const [skipOverlaySide, setSkipOverlaySide] = useState<"left" | "right" | null>(null);
+  const [skipPulseSide, setSkipPulseSide] = useState<"left" | "right" | null>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
 
   const deviceClass = useMemo(() => detectDeviceClass(), []);
@@ -159,16 +183,6 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
     const next = clamp(video.currentTime + seconds, 0, Number.isFinite(video.duration) ? video.duration : 0);
     video.currentTime = next;
     setCurrentSec(next);
-  }, []);
-
-  const showSkipFlash = useCallback((label: "-10s" | "+10s") => {
-    setSkipFlash(label);
-    if (skipFlashTimeoutRef.current) {
-      window.clearTimeout(skipFlashTimeoutRef.current);
-    }
-    skipFlashTimeoutRef.current = window.setTimeout(() => {
-      setSkipFlash(null);
-    }, 550);
   }, []);
 
   const revealControls = useCallback(() => {
@@ -265,21 +279,43 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
     await document.exitFullscreen().catch(() => null);
   }, []);
 
+  const triggerSkip = useCallback(
+    (side: "left" | "right") => {
+      revealControls();
+      if (side === "left") {
+        seekBy(-10);
+      } else {
+        seekBy(10);
+      }
+
+      setSkipOverlaySide(side);
+      if (skipOverlayTimeoutRef.current) {
+        window.clearTimeout(skipOverlayTimeoutRef.current);
+      }
+      skipOverlayTimeoutRef.current = window.setTimeout(() => {
+        setSkipOverlaySide(null);
+      }, 620);
+
+      setSkipPulseSide(side);
+      if (skipPulseTimeoutRef.current) {
+        window.clearTimeout(skipPulseTimeoutRef.current);
+      }
+      skipPulseTimeoutRef.current = window.setTimeout(() => {
+        setSkipPulseSide(null);
+      }, 260);
+    },
+    [revealControls, seekBy],
+  );
+
   const handleTapZone = useCallback(
     (zone: "left" | "right") => {
       const now = Date.now();
       const prev = lastTapRef.current[zone];
       lastTapRef.current[zone] = now;
       if (now - prev > 320) return;
-      if (zone === "left") {
-        seekBy(-10);
-        showSkipFlash("-10s");
-      } else {
-        seekBy(10);
-        showSkipFlash("+10s");
-      }
+      triggerSkip(zone);
     },
-    [seekBy, showSkipFlash],
+    [triggerSkip],
   );
 
   useEffect(() => {
@@ -554,13 +590,11 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
       }
       if (event.key === "ArrowRight") {
         event.preventDefault();
-        seekBy(10);
-        revealControls();
+        triggerSkip("right");
       }
       if (event.key === "ArrowLeft") {
         event.preventDefault();
-        seekBy(-10);
-        revealControls();
+        triggerSkip("left");
       }
       if (event.key.toLowerCase() === "m") {
         event.preventDefault();
@@ -575,7 +609,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [revealControls, seekBy, toggleFullscreen, toggleMute, togglePlay]);
+  }, [revealControls, toggleFullscreen, toggleMute, togglePlay, triggerSkip]);
 
   useEffect(() => {
     if (!isPlaying || !controlsVisible || isSeeking) return;
@@ -592,8 +626,11 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
 
   useEffect(() => {
     return () => {
-      if (skipFlashTimeoutRef.current) {
-        window.clearTimeout(skipFlashTimeoutRef.current);
+      if (skipOverlayTimeoutRef.current) {
+        window.clearTimeout(skipOverlayTimeoutRef.current);
+      }
+      if (skipPulseTimeoutRef.current) {
+        window.clearTimeout(skipPulseTimeoutRef.current);
       }
       if (controlsHideTimeoutRef.current) {
         window.clearTimeout(controlsHideTimeoutRef.current);
@@ -654,10 +691,14 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
             }}
             onTouchEnd={() => handleTapZone("right")}
           />
-          {skipFlash ? (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="rounded-full bg-black/65 px-4 py-2 text-xs font-semibold text-white backdrop-blur md:text-sm">
-                {skipFlash}
+          {skipOverlaySide ? (
+            <div className="pointer-events-none absolute inset-0">
+              <div
+                className={`absolute top-1/2 -translate-y-1/2 rounded-full bg-black/65 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur md:px-4 md:py-2 md:text-sm ${
+                  skipOverlaySide === "left" ? "left-[14%]" : "right-[14%]"
+                }`}
+              >
+                {skipOverlaySide === "left" ? "-10s" : "+10s"}
               </div>
             </div>
           ) : null}
@@ -704,11 +745,13 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
               <div className="flex items-center justify-between gap-2 sm:justify-start">
                 <button
                   type="button"
-                  onClick={() => seekBy(-10)}
+                  onClick={() => triggerSkip("left")}
                   aria-label="Skip backward 10 seconds"
-                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/20 md:min-h-0 md:min-w-0 md:px-3 md:text-sm"
+                  className={`flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/20 md:min-h-0 md:min-w-0 md:px-3 md:text-sm ${
+                    skipPulseSide === "left" ? "stream-skip-pulse" : ""
+                  }`}
                 >
-                  10
+                  <IconReplay10 />
                 </button>
                 <button
                   type="button"
@@ -720,11 +763,13 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => seekBy(10)}
+                  onClick={() => triggerSkip("right")}
                   aria-label="Skip forward 10 seconds"
-                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/20 md:min-h-0 md:min-w-0 md:px-3 md:text-sm"
+                  className={`flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/20 md:min-h-0 md:min-w-0 md:px-3 md:text-sm ${
+                    skipPulseSide === "right" ? "stream-skip-pulse" : ""
+                  }`}
                 >
-                  10
+                  <IconForward10 />
                 </button>
                 <div className="ml-auto min-w-24 text-right text-xs text-white/80 md:ml-0 md:min-w-28 md:text-left md:text-sm">
                   {formatClock(currentSec)} / {formatClock(durationSec)}
@@ -785,7 +830,11 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 text-[11px] text-white/75 md:text-xs">
+      <div
+        className={`flex flex-wrap gap-2 text-[11px] text-white/75 transition-opacity md:text-xs ${
+          isPlaying ? "hidden sm:flex" : "flex"
+        }`}
+      >
         <span className="rounded-full bg-white/10 px-2.5 py-1 md:px-3">
           <span className="hidden sm:inline">Status: </span>
           {status}
