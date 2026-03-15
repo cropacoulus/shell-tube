@@ -1,0 +1,71 @@
+{
+  "profiles": {
+    "user_demo_001": {
+      "userId": "user_demo_001",
+      "displayName": "user_d..._001",
+      "role": "user",
+      "updatedAt": "2026-03-15T14:25:23.826Z"
+    },
+    "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2": {
+      "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "displayName": "0xf646...c7d2",
+      "role": "admin",
+      "updatedAt": "2026-03-15T16:39:27.372Z"
+    }
+  },
+  "categories": [
+    {
+      "id": "cat_4322c397",
+      "createdAt": "2026-03-15T15:22:54.476Z",
+      "name": "Comedy",
+      "description": ""
+    },
+    {
+      "id": "cat_0d394a2c",
+      "createdAt": "2026-03-15T15:22:59.924Z",
+      "name": "Romantic",
+      "description": ""
+    }
+  ],
+  "videos": [
+    {
+      "id": "vid_84f8101c",
+      "createdAt": "2026-03-15T15:26:25.751Z",
+      "title": "Comendy",
+      "synopsis": "sinopsis comedy",
+      "year": 2026,
+      "maturityRating": "13+",
+      "durationMin": 90,
+      "categoryId": "cat_4322c397",
+      "heroImageUrl": "",
+      "cardImageUrl": "",
+      "manifestBlobKey": ""
+    },
+    {
+      "id": "vid_f649ce6f",
+      "createdAt": "2026-03-15T16:40:17.424Z",
+      "title": "Romantic",
+      "synopsis": "",
+      "year": 2026,
+      "maturityRating": "13+",
+      "durationMin": 90,
+      "categoryId": "cat_0d394a2c",
+      "heroImageUrl": "",
+      "cardImageUrl": "",
+      "manifestBlobKey": ""
+    },
+    {
+      "id": "vid_385e03a6",
+      "createdAt": "2026-03-15T17:05:33.078Z",
+      "title": "Comedy Romantic",
+      "synopsis": "",
+      "year": 2026,
+      "maturityRating": "13+",
+      "durationMin": 90,
+      "categoryId": "cat_4322c397",
+      "heroImageUrl": "",
+      "cardImageUrl": "",
+      "manifestBlobKey": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/titles/comedy-romantic/videos/file_example_MP4_640_3MG.mp4"
+    }
+  ]
+}

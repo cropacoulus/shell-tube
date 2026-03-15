@@ -1,0 +1,801 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from "react";
+import type Hls from "hls.js";
+
+import type { DeviceClass, NetworkType } from "@/lib/contracts/common";
+import type { PlaybackTokenResponse } from "@/lib/contracts/playback";
+import type { QoeEvent, QoeEventsIngestRequest } from "@/lib/contracts/qoe";
+import type { ShelbyBootstrapResponse } from "@/lib/contracts/shelby";
+import { ShelbyAdapter } from "@/lib/player/shelby-adapter";
+
+type StreamPlayerProps = {
+  titleId: string;
+  region: string;
+};
+
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+function detectDeviceClass(): DeviceClass {
+  if (typeof window === "undefined") return "desktop";
+  const width = window.innerWidth;
+  if (width < 640) return "mobile";
+  if (width < 1024) return "tablet";
+  return "desktop";
+}
+
+function detectNetworkType(): NetworkType {
+  if (typeof navigator === "undefined") return "unknown";
+  const nav = navigator as Navigator & {
+    connection?: { type?: string };
+  };
+  const type = nav.connection?.type ?? "unknown";
+  if (type === "wifi" || type === "cellular" || type === "ethernet") return type;
+  return "unknown";
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function formatClock(totalSeconds: number) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "00:00";
+  const sec = Math.floor(totalSeconds % 60);
+  const min = Math.floor((totalSeconds / 60) % 60);
+  const hour = Math.floor(totalSeconds / 3600);
+  if (hour > 0) {
+    return `${hour}:${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
+  return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+function IconPlay() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
+function IconPause() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
+    </svg>
+  );
+}
+
+function IconFullscreen() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M7 14H5v5h5v-2H7v-3zm0-4h2V7h3V5H5v5zm10 7h-3v2h5v-5h-2v3zm0-12V5h-5v2h3v3h2V5z" />
+    </svg>
+  );
+}
+
+function IconExitFullscreen() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M8 16h3v3h2v-5H8v2zm-3 3h5v-2H7v-3H5v5zm14-5h-5v5h2v-3h3v-2zm-3-9v3h-2V5h-5v2h3v3h2V7h3V5z" />
+    </svg>
+  );
+}
+
+function IconVolume({ muted }: { muted: boolean }) {
+  if (muted) {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+        <path d="M3 9v6h4l5 5V4L7 9H3zm13.59 3 2.7 2.7-1.41 1.41-2.7-2.7-2.7 2.7-1.41-1.41 2.7-2.7-2.7-2.7 1.41-1.41 2.7 2.7 2.7-2.7 1.41 1.41-2.7 2.7z" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.05A4.49 4.49 0 0016.5 12z" />
+    </svg>
+  );
+}
+
+export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const playbackRef = useRef<PlaybackTokenResponse | null>(null);
+  const adapterRef = useRef<ShelbyAdapter | null>(null);
+  const qoeBufferRef = useRef<QoeEvent[]>([]);
+  const peerHitRatioRef = useRef(0);
+  const lastTapRef = useRef<{ left: number; right: number }>({ left: 0, right: 0 });
+  const skipFlashTimeoutRef = useRef<number | null>(null);
+  const controlsHideTimeoutRef = useRef<number | null>(null);
+
+  const [status, setStatus] = useState("Initializing player...");
+  const [fatalError, setFatalError] = useState<string | null>(null);
+  const [abrKbps, setAbrKbps] = useState<number | null>(null);
+  const [peerHitRatio, setPeerHitRatio] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [durationSec, setDurationSec] = useState(0);
+  const [currentSec, setCurrentSec] = useState(0);
+  const [bufferedSec, setBufferedSec] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekPreviewSec, setSeekPreviewSec] = useState<number | null>(null);
+  const [skipFlash, setSkipFlash] = useState<"-10s" | "+10s" | null>(null);
+  const [controlsVisible, setControlsVisible] = useState(true);
+
+  const deviceClass = useMemo(() => detectDeviceClass(), []);
+  const networkType = useMemo(() => detectNetworkType(), []);
+
+  const sendQoe = useCallback(async () => {
+    if (qoeBufferRef.current.length === 0) return;
+
+    const payload: QoeEventsIngestRequest = {
+      events: [...qoeBufferRef.current],
+    };
+    qoeBufferRef.current = [];
+
+    await fetch("/api/v1/qoe/events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => null);
+  }, []);
+
+  const queueQoe = useCallback(
+    (event: Omit<QoeEvent, "deviceId">) => {
+      qoeBufferRef.current.push({ ...event, deviceId: "web-player" });
+      if (qoeBufferRef.current.length >= 5) {
+        void sendQoe();
+      }
+    },
+    [sendQoe],
+  );
+
+  const seekBy = useCallback((seconds: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    const next = clamp(video.currentTime + seconds, 0, Number.isFinite(video.duration) ? video.duration : 0);
+    video.currentTime = next;
+    setCurrentSec(next);
+  }, []);
+
+  const showSkipFlash = useCallback((label: "-10s" | "+10s") => {
+    setSkipFlash(label);
+    if (skipFlashTimeoutRef.current) {
+      window.clearTimeout(skipFlashTimeoutRef.current);
+    }
+    skipFlashTimeoutRef.current = window.setTimeout(() => {
+      setSkipFlash(null);
+    }, 550);
+  }, []);
+
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    if (controlsHideTimeoutRef.current) {
+      window.clearTimeout(controlsHideTimeoutRef.current);
+      controlsHideTimeoutRef.current = null;
+    }
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      void video.play().catch(() => null);
+      return;
+    }
+    video.pause();
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const nextMute = !video.muted;
+    video.muted = nextMute;
+    setIsMuted(nextMute);
+  }, []);
+
+  const onSeekChange = useCallback((value: number) => {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(video.duration)) return;
+    const next = clamp(value, 0, video.duration);
+    video.currentTime = next;
+    setCurrentSec(next);
+    revealControls();
+  }, [revealControls]);
+
+  const updateSeekPreview = useCallback(
+    (clientX: number, target: HTMLElement) => {
+      if (durationSec <= 0) return;
+      const rect = target.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
+      setSeekPreviewSec(ratio * durationSec);
+    },
+    [durationSec],
+  );
+
+  const handleSeekMouseMove = useCallback(
+    (event: ReactMouseEvent<HTMLInputElement>) => {
+      setIsSeeking(true);
+      updateSeekPreview(event.clientX, event.currentTarget);
+    },
+    [updateSeekPreview],
+  );
+
+  const handleSeekTouchMove = useCallback(
+    (event: ReactTouchEvent<HTMLInputElement>) => {
+      const point = event.touches[0];
+      if (!point) return;
+      setIsSeeking(true);
+      updateSeekPreview(point.clientX, event.currentTarget);
+    },
+    [updateSeekPreview],
+  );
+
+  const onVolumeChange = useCallback((value: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    const next = clamp(value, 0, 1);
+    video.volume = next;
+    video.muted = next === 0;
+    setVolume(next);
+    setIsMuted(video.muted);
+    revealControls();
+  }, [revealControls]);
+
+  const onSpeedChange = useCallback((value: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.playbackRate = value;
+    setPlaybackRate(value);
+    revealControls();
+  }, [revealControls]);
+
+  const toggleFullscreen = useCallback(async () => {
+    const wrapper = containerRef.current;
+    if (!wrapper) return;
+
+    if (!document.fullscreenElement) {
+      await wrapper.requestFullscreen().catch(() => null);
+      return;
+    }
+    await document.exitFullscreen().catch(() => null);
+  }, []);
+
+  const handleTapZone = useCallback(
+    (zone: "left" | "right") => {
+      const now = Date.now();
+      const prev = lastTapRef.current[zone];
+      lastTapRef.current[zone] = now;
+      if (now - prev > 320) return;
+      if (zone === "left") {
+        seekBy(-10);
+        showSkipFlash("-10s");
+      } else {
+        seekBy(10);
+        showSkipFlash("+10s");
+      }
+    },
+    [seekBy, showSkipFlash],
+  );
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void sendQoe();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [sendQoe]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const videoEl = video;
+    let hls: Hls | null = null;
+    let canceled = false;
+
+    async function bootstrapShelby(playbackSessionId: string) {
+      const response = await fetch("/api/v1/shelby/bootstrap", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          playbackSessionId,
+          titleId,
+          region,
+          deviceClass,
+          networkType,
+          maxPeers: 6,
+        }),
+      });
+      if (!response.ok) throw new Error("Shelby bootstrap failed");
+      const body = (await response.json()) as { data: ShelbyBootstrapResponse };
+      return body.data;
+    }
+
+    async function getPlaybackToken() {
+      const response = await fetch("/api/v1/playback/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          titleId,
+          region,
+          deviceClass,
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as
+          | { error?: { message?: string } }
+          | null;
+        throw new Error(body?.error?.message || "Playback session failed");
+      }
+      const body = (await response.json()) as { data: PlaybackTokenResponse };
+      return body.data;
+    }
+
+    function updatePeerRatio() {
+      const stats = adapterRef.current?.getStats();
+      if (!stats) return;
+      const total = stats.peerHits + stats.cdnFallbacks;
+      const ratio = total === 0 ? 0 : Math.round((stats.peerHits / total) * 100);
+      peerHitRatioRef.current = ratio;
+      setPeerHitRatio(ratio);
+    }
+
+    function isHlsManifestUrl(url: string) {
+      return url.toLowerCase().includes(".m3u8");
+    }
+
+    async function init() {
+      try {
+        setStatus("Creating playback session...");
+        const playback = await getPlaybackToken();
+        if (canceled) return;
+        playbackRef.current = playback;
+
+        if (playback.featureFlags.shelbyEnabled) {
+          setStatus("Bootstrapping Shelby peers...");
+          const bootstrap = await bootstrapShelby(playback.playbackSessionId);
+          if (canceled) return;
+          adapterRef.current = new ShelbyAdapter(bootstrap);
+          adapterRef.current.addEventListener("peer_hit", updatePeerRatio);
+          adapterRef.current.addEventListener("cdn_fallback", updatePeerRatio);
+        }
+
+        setStatus("Loading stream...");
+
+        if (!isHlsManifestUrl(playback.manifestUrl)) {
+          videoEl.src = playback.manifestUrl;
+          videoEl.addEventListener(
+            "loadedmetadata",
+            () => {
+              setStatus("Ready");
+              queueQoe({
+                type: "startup",
+                eventTs: new Date().toISOString(),
+                playbackSessionId: playback.playbackSessionId,
+                titleId,
+                positionMs: 0,
+              });
+            },
+            { once: true },
+          );
+        } else {
+          const hlsModule = await import("hls.js");
+          const HlsImpl = hlsModule.default;
+
+          if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
+            videoEl.src = playback.manifestUrl;
+          } else if (HlsImpl.isSupported()) {
+            hls = new HlsImpl({
+              autoStartLoad: true,
+              capLevelToPlayerSize: true,
+              startLevel: -1,
+              abrEwmaDefaultEstimate: 1_500_000,
+            });
+            hls.loadSource(playback.manifestUrl);
+            hls.attachMedia(videoEl);
+
+            hls.on(HlsImpl.Events.MANIFEST_PARSED, () => {
+              queueQoe({
+                type: "startup",
+                eventTs: new Date().toISOString(),
+                playbackSessionId: playback.playbackSessionId,
+                titleId,
+                positionMs: 0,
+              });
+              setStatus("Ready");
+            });
+
+            hls.on(HlsImpl.Events.LEVEL_SWITCHED, (_evt, data) => {
+              const bitrate = hls?.levels[data.level]?.bitrate ?? 0;
+              const bitrateKbps = Math.floor(bitrate / 1000);
+              setAbrKbps(bitrateKbps);
+              queueQoe({
+                type: "bitrate_change",
+                eventTs: new Date().toISOString(),
+                playbackSessionId: playback.playbackSessionId,
+                titleId,
+                positionMs: Math.floor(videoEl.currentTime * 1000),
+                bitrateKbps,
+                peerHitRatio: peerHitRatioRef.current,
+              });
+            });
+
+            hls.on(HlsImpl.Events.FRAG_BUFFERED, (_evt, data) => {
+              if (!adapterRef.current) return;
+              if (adapterRef.current.getPolicy().peerFirst) {
+                adapterRef.current.recordPeerHit(data.frag.sn.toString());
+              } else {
+                adapterRef.current.recordCdnFallback("policy_peer_first_disabled");
+              }
+            });
+
+            hls.on(HlsImpl.Events.ERROR, (_evt, data) => {
+              if (!data.fatal) return;
+              setFatalError(data.details || "Fatal playback error");
+              queueQoe({
+                type: "fatal_error",
+                eventTs: new Date().toISOString(),
+                playbackSessionId: playback.playbackSessionId,
+                titleId,
+                positionMs: Math.floor(videoEl.currentTime * 1000),
+                errorCode: data.details || "UNKNOWN",
+              });
+            });
+          } else {
+            throw new Error("HLS is not supported on this browser");
+          }
+        }
+
+        const onWaiting = () => {
+          queueQoe({
+            type: "rebuffer_start",
+            eventTs: new Date().toISOString(),
+            playbackSessionId: playback.playbackSessionId,
+            titleId,
+            positionMs: Math.floor(videoEl.currentTime * 1000),
+            peerHitRatio: peerHitRatioRef.current,
+          });
+        };
+        const onPlaying = () => {
+          queueQoe({
+            type: "rebuffer_end",
+            eventTs: new Date().toISOString(),
+            playbackSessionId: playback.playbackSessionId,
+            titleId,
+            positionMs: Math.floor(videoEl.currentTime * 1000),
+            peerHitRatio: peerHitRatioRef.current,
+          });
+        };
+        const onTimeUpdate = () => {
+          setCurrentSec(videoEl.currentTime);
+        };
+        const onLoadedMetadata = () => {
+          setDurationSec(Number.isFinite(videoEl.duration) ? videoEl.duration : 0);
+          setPlaybackRate(videoEl.playbackRate || 1);
+          setVolume(videoEl.volume);
+          setIsMuted(videoEl.muted);
+        };
+        const onProgress = () => {
+          if (!videoEl.buffered.length) return;
+          const end = videoEl.buffered.end(videoEl.buffered.length - 1);
+          setBufferedSec(end);
+        };
+        const onPlay = () => setIsPlaying(true);
+        const onPause = () => {
+          setIsPlaying(false);
+          revealControls();
+        };
+        const onEnded = () => {
+          setIsPlaying(false);
+          revealControls();
+        };
+
+        videoEl.addEventListener("waiting", onWaiting);
+        videoEl.addEventListener("playing", onPlaying);
+        videoEl.addEventListener("timeupdate", onTimeUpdate);
+        videoEl.addEventListener("loadedmetadata", onLoadedMetadata);
+        videoEl.addEventListener("progress", onProgress);
+        videoEl.addEventListener("play", onPlay);
+        videoEl.addEventListener("pause", onPause);
+        videoEl.addEventListener("ended", onEnded);
+
+        return () => {
+          videoEl.removeEventListener("waiting", onWaiting);
+          videoEl.removeEventListener("playing", onPlaying);
+          videoEl.removeEventListener("timeupdate", onTimeUpdate);
+          videoEl.removeEventListener("loadedmetadata", onLoadedMetadata);
+          videoEl.removeEventListener("progress", onProgress);
+          videoEl.removeEventListener("play", onPlay);
+          videoEl.removeEventListener("pause", onPause);
+          videoEl.removeEventListener("ended", onEnded);
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Player init failed";
+        setFatalError(message);
+        return () => undefined;
+      }
+    }
+
+    let removeDomListeners: (() => void) | null = null;
+    void init().then((cleanup) => {
+      if (!canceled && typeof cleanup === "function") {
+        removeDomListeners = cleanup;
+      }
+    });
+
+    return () => {
+      canceled = true;
+      void sendQoe();
+      removeDomListeners?.();
+      hls?.destroy();
+    };
+  }, [deviceClass, networkType, queueQoe, region, revealControls, sendQoe, titleId]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (event.key === " ") {
+        event.preventDefault();
+        togglePlay();
+        revealControls();
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        seekBy(10);
+        revealControls();
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        seekBy(-10);
+        revealControls();
+      }
+      if (event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        toggleMute();
+        revealControls();
+      }
+      if (event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        void toggleFullscreen();
+        revealControls();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [revealControls, seekBy, toggleFullscreen, toggleMute, togglePlay]);
+
+  useEffect(() => {
+    if (!isPlaying || !controlsVisible || isSeeking) return;
+    controlsHideTimeoutRef.current = window.setTimeout(() => {
+      setControlsVisible(false);
+    }, 2600);
+    return () => {
+      if (controlsHideTimeoutRef.current) {
+        window.clearTimeout(controlsHideTimeoutRef.current);
+        controlsHideTimeoutRef.current = null;
+      }
+    };
+  }, [controlsVisible, isPlaying, isSeeking]);
+
+  useEffect(() => {
+    return () => {
+      if (skipFlashTimeoutRef.current) {
+        window.clearTimeout(skipFlashTimeoutRef.current);
+      }
+      if (controlsHideTimeoutRef.current) {
+        window.clearTimeout(controlsHideTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const playedPercent = durationSec > 0 ? (currentSec / durationSec) * 100 : 0;
+  const bufferedPercent = durationSec > 0 ? (bufferedSec / durationSec) * 100 : 0;
+  const tooltipSec = seekPreviewSec ?? currentSec;
+  const tooltipPercent = durationSec > 0 ? (tooltipSec / durationSec) * 100 : 0;
+  const seekTrackStyle = {
+    background: `linear-gradient(to right,
+      rgba(239, 68, 68, 1) 0%,
+      rgba(239, 68, 68, 1) ${clamp(playedPercent, 0, 100)}%,
+      rgba(255, 255, 255, 0.45) ${clamp(playedPercent, 0, 100)}%,
+      rgba(255, 255, 255, 0.45) ${clamp(bufferedPercent, 0, 100)}%,
+      rgba(255, 255, 255, 0.22) ${clamp(bufferedPercent, 0, 100)}%,
+      rgba(255, 255, 255, 0.22) 100%)`,
+  };
+
+  return (
+    <div className="space-y-3">
+      <div
+        ref={containerRef}
+        className="overflow-hidden rounded-xl border border-white/15 bg-[#02050d] shadow-[0_20px_70px_rgba(0,0,0,0.45)] md:rounded-2xl"
+        onMouseMove={revealControls}
+        onTouchStart={revealControls}
+      >
+        <div className="relative bg-black">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            className="aspect-video w-full bg-black"
+            onDoubleClick={() => {
+              void toggleFullscreen();
+            }}
+            onClick={revealControls}
+          />
+          <button
+            type="button"
+            aria-label="Double tap left to rewind 10 seconds"
+            className="absolute inset-y-0 left-0 w-1/2"
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              handleTapZone("left");
+            }}
+            onTouchEnd={() => handleTapZone("left")}
+          />
+          <button
+            type="button"
+            aria-label="Double tap right to forward 10 seconds"
+            className="absolute inset-y-0 right-0 w-1/2"
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              handleTapZone("right");
+            }}
+            onTouchEnd={() => handleTapZone("right")}
+          />
+          {skipFlash ? (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="rounded-full bg-black/65 px-4 py-2 text-xs font-semibold text-white backdrop-blur md:text-sm">
+                {skipFlash}
+              </div>
+            </div>
+          ) : null}
+          <div
+            className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-2.5 transition-opacity duration-200 sm:p-3 md:p-4 ${
+              controlsVisible ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+          >
+            <div className="relative mb-3">
+              {isSeeking && seekPreviewSec !== null ? (
+                <div
+                  className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-black/85 px-2 py-0.5 text-[10px] text-white"
+                  style={{ left: `${clamp(tooltipPercent, 0, 100)}%` }}
+                >
+                  {formatClock(tooltipSec)}
+                </div>
+              ) : null}
+              <input
+                type="range"
+                min={0}
+                max={durationSec || 0}
+                step={0.1}
+                value={clamp(currentSec, 0, durationSec || 0)}
+                onChange={(event) => onSeekChange(Number(event.target.value))}
+                onMouseMove={handleSeekMouseMove}
+                onMouseEnter={() => setIsSeeking(true)}
+                onMouseLeave={() => {
+                  setIsSeeking(false);
+                  setSeekPreviewSec(null);
+                }}
+                onTouchStart={handleSeekTouchMove}
+                onTouchMove={handleSeekTouchMove}
+                onTouchEnd={() => {
+                  setIsSeeking(false);
+                  setSeekPreviewSec(null);
+                }}
+                className="stream-seekbar h-2 w-full cursor-pointer rounded-full md:h-1.5"
+                style={seekTrackStyle}
+                aria-label="Seek timeline"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between md:gap-3">
+              <div className="flex items-center justify-between gap-2 sm:justify-start">
+                <button
+                  type="button"
+                  onClick={() => seekBy(-10)}
+                  aria-label="Skip backward 10 seconds"
+                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/20 md:min-h-0 md:min-w-0 md:px-3 md:text-sm"
+                >
+                  10
+                </button>
+                <button
+                  type="button"
+                  onClick={togglePlay}
+                  aria-label={isPlaying ? "Pause" : "Play"}
+                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full bg-white px-3 py-1.5 text-black hover:bg-white/90 md:min-h-0"
+                >
+                  {isPlaying ? <IconPause /> : <IconPlay />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => seekBy(10)}
+                  aria-label="Skip forward 10 seconds"
+                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/20 md:min-h-0 md:min-w-0 md:px-3 md:text-sm"
+                >
+                  10
+                </button>
+                <div className="ml-auto min-w-24 text-right text-xs text-white/80 md:ml-0 md:min-w-28 md:text-left md:text-sm">
+                  {formatClock(currentSec)} / {formatClock(durationSec)}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 sm:justify-start">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}
+                    className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20 md:min-h-0 md:min-w-0 md:text-sm"
+                  >
+                    <IconVolume muted={isMuted || volume === 0} />
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={isMuted ? 0 : volume}
+                    onChange={(event) => onVolumeChange(Number(event.target.value))}
+                    className="hidden h-2 w-20 cursor-pointer accent-white sm:block"
+                    aria-label="Volume"
+                  />
+                </div>
+
+                <label className="min-h-10 rounded-full border border-white/25 bg-white/10 px-2 py-1 text-xs text-white md:min-h-0 md:text-sm">
+                  <span className="mr-1 text-white/80">Speed</span>
+                  <select
+                    value={playbackRate}
+                    onChange={(event) => onSpeedChange(Number(event.target.value))}
+                    className="bg-transparent pr-1 text-white outline-none"
+                    aria-label="Playback speed"
+                  >
+                    {SPEED_OPTIONS.map((rate) => (
+                      <option key={rate} value={rate} className="bg-black">
+                        {rate}x
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    void toggleFullscreen();
+                  }}
+                  aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20 md:min-h-0 md:min-w-0 md:text-sm"
+                >
+                  {isFullscreen ? <IconExitFullscreen /> : <IconFullscreen />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-[11px] text-white/75 md:text-xs">
+        <span className="rounded-full bg-white/10 px-2.5 py-1 md:px-3">
+          <span className="hidden sm:inline">Status: </span>
+          {status}
+        </span>
+        <span className="rounded-full bg-white/10 px-3 py-1">
+          ABR: {abrKbps ? `${abrKbps} kbps` : "auto"}
+        </span>
+        <span className="rounded-full bg-white/10 px-3 py-1">Shelby Hit Ratio: {peerHitRatio}%</span>
+      </div>
+      {fatalError ? <p className="text-sm text-red-300">{fatalError}</p> : null}
+    </div>
+  );
+}
