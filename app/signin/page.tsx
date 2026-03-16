@@ -6,6 +6,34 @@ import { Network } from "@aptos-labs/ts-sdk";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { resolveAppNetwork } from "@/lib/wallet/network";
 
+function bytesToHex(bytes: Uint8Array) {
+  return `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function normalizeWalletValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    const first = value.find((item): item is string => typeof item === "string" && item.length > 0);
+    return first ?? "";
+  }
+  if (
+    value &&
+    typeof value === "object" &&
+    "toUint8Array" in value &&
+    typeof (value as { toUint8Array: () => Uint8Array }).toUint8Array === "function"
+  ) {
+    return bytesToHex((value as { toUint8Array: () => Uint8Array }).toUint8Array());
+  }
+  if (value && typeof value === "object" && "data" in value && value.data instanceof Uint8Array) {
+    return bytesToHex(value.data);
+  }
+  if (value && typeof value === "object" && typeof value.toString === "function") {
+    const rendered = value.toString();
+    if (rendered && rendered !== "[object Object]") return rendered;
+  }
+  return "";
+}
+
 export default function SignInPage() {
   const router = useRouter();
   const { connect, disconnect, wallets, account, connected, signMessage, network, changeNetwork } = useWallet();
@@ -75,11 +103,8 @@ export default function SignInPage() {
         message: challengeBody.data.message,
         nonce: challengeBody.data.nonce,
       });
-      const signature =
-        typeof signed.signature === "string"
-          ? signed.signature
-          : signed.signature?.toString?.() ?? "";
-      const publicKey = account?.publicKey?.toString?.() ?? "";
+      const signature = normalizeWalletValue(signed.signature);
+      const publicKey = normalizeWalletValue(account?.publicKey);
       if (!signature || !publicKey || !signed.fullMessage) {
         throw new Error("Wallet signature payload is incomplete.");
       }

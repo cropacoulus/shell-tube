@@ -13,6 +13,8 @@ export type PlaybackTokenResponse = {
   token: string;
   expiresAt: string;
   manifestUrl: string;
+  lessonId?: string;
+  courseId?: string;
   drm: {
     scheme: "widevine" | "fairplay" | "playready";
     licenseServerUrl: string;

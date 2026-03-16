@@ -2,20 +2,26 @@ import { redirect } from "next/navigation";
 
 import StickyNavbar from "@/app/_components/sticky-navbar";
 import ProfileClient from "@/app/profile/profile-client";
+import { getProfileRepository } from "@/lib/repositories";
 import { getAuthContextFromHeaders } from "@/lib/server/auth";
-import { getProfile, upsertProfile } from "@/lib/server/data-store";
+import { getEffectiveUserRole } from "@/lib/server/effective-role";
 
 export default async function ProfilePage() {
   const auth = await getAuthContextFromHeaders();
   if (!auth) redirect("/signin");
+  const profileRepository = getProfileRepository();
+  const effectiveRole = await getEffectiveUserRole({
+    userId: auth.userId,
+    fallbackRole: auth.role,
+  });
 
-  const existing = await getProfile(auth.userId);
+  const existing = await profileRepository.getProfile(auth.userId);
   const profile =
     existing ??
-    (await upsertProfile({
+    (await profileRepository.upsertProfile({
       userId: auth.userId,
       displayName: `${auth.userId.slice(0, 6)}...${auth.userId.slice(-4)}`,
-      role: auth.role,
+      role: effectiveRole,
       updatedAt: new Date().toISOString(),
     }));
 

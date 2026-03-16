@@ -13,9 +13,11 @@ import {
   SESSION_COOKIE_NAME,
   WALLET_NONCE_COOKIE_NAME,
 } from "@/lib/auth/constants";
+import { normalizeUserRole } from "@/lib/auth/capabilities";
+import { resolveEffectiveUserRole } from "@/lib/auth/effective-role";
 import { signSessionToken } from "@/lib/auth/jwt";
 import { isAdminWallet, isAptosAddress } from "@/lib/auth/wallet";
-import { upsertProfile } from "@/lib/server/data-store";
+import { getProfileRepository } from "@/lib/repositories";
 
 type WalletVerifyRequest = {
   address: string;
@@ -35,6 +37,15 @@ type NonceCookiePayload = {
   region: string;
   message?: string;
 };
+
+function isCreatorWallet(address: string) {
+  const raw = process.env.CREATOR_WALLETS ?? "";
+  const wallets = raw
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  return wallets.includes(address.toLowerCase());
+}
 
 function isValid(body: unknown): body is WalletVerifyRequest {
   if (!body || typeof body !== "object") return false;
@@ -190,7 +201,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const role = isAdminWallet(body.address) ? "admin" : "user";
+  const envRole = normalizeUserRole(
+    isAdminWallet(body.address) ? "admin" : isCreatorWallet(body.address) ? "creator" : "student",
+  );
+  const existingProfile = await getProfileRepository().getProfile(body.address.toLowerCase());
+  const role = resolveEffectiveUserRole({
+    fallbackRole: envRole,
+    storedRole: existingProfile?.role,
+  });
 
   const token = await signSessionToken(
     {
@@ -203,9 +221,10 @@ export async function POST(req: Request) {
     secret,
   );
 
-  await upsertProfile({
+  await getProfileRepository().upsertProfile({
     userId: body.address.toLowerCase(),
-    displayName: `${body.address.slice(0, 6)}...${body.address.slice(-4)}`,
+    displayName: existingProfile?.displayName ?? `${body.address.slice(0, 6)}...${body.address.slice(-4)}`,
+    avatarUrl: existingProfile?.avatarUrl,
     role,
     updatedAt: new Date().toISOString(),
   });
@@ -223,6 +242,7 @@ export async function POST(req: Request) {
     ok: true,
     data: {
       address: body.address.toLowerCase(),
+      role,
     },
   });
 }

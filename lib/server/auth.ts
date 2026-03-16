@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 
+import { normalizeUserRole } from "@/lib/auth/capabilities";
 import type { AuthContext } from "@/lib/auth/types";
 
 function fromHeaderMap(headerMap: Headers): AuthContext | null {
@@ -7,8 +8,7 @@ function fromHeaderMap(headerMap: Headers): AuthContext | null {
   const profileId = headerMap.get("x-profile-id");
   const region = headerMap.get("x-region");
   const sessionId = headerMap.get("x-session-id");
-  const roleHeader = headerMap.get("x-role");
-  const role = roleHeader === "admin" ? "admin" : "user";
+  const role = normalizeUserRole(headerMap.get("x-role"));
 
   if (!userId || !profileId || !region || !sessionId) return null;
   return { userId, profileId, region, sessionId, role };

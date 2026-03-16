@@ -5,6 +5,48 @@ export type FilmCategory = {
   createdAt: string;
 };
 
+export type VideoPublishStatus = "draft" | "published";
+
+export type MediaAssetType = "manifest" | "source_video";
+
+export type FilmMediaAsset = {
+  id: string;
+  titleId: string;
+  blobKey: string;
+  fileName: string;
+  contentType: string;
+  assetType: MediaAssetType;
+  ingestStatus: "ready";
+  createdByUserId: string;
+  createdAt: string;
+};
+
+export type FilmCourseRecord = {
+  id: string;
+  creatorProfileId?: string;
+  title: string;
+  synopsis: string;
+  year: number;
+  categoryId: string;
+  heroImageUrl: string;
+  cardImageUrl: string;
+  publishStatus: VideoPublishStatus;
+  createdAt: string;
+};
+
+export type FilmLessonRecord = {
+  id: string;
+  courseId: string;
+  title: string;
+  synopsis: string;
+  durationMin: number;
+  maturityRating: string;
+  manifestBlobKey: string;
+  streamAssetId?: string;
+  publishStatus: VideoPublishStatus;
+  createdAt: string;
+};
+
 export type FilmVideo = {
   id: string;
   title: string;
@@ -16,5 +58,7 @@ export type FilmVideo = {
   heroImageUrl: string;
   cardImageUrl: string;
   manifestBlobKey: string;
+  streamAssetId?: string;
+  publishStatus: VideoPublishStatus;
   createdAt: string;
 };

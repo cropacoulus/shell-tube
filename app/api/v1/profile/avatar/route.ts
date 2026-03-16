@@ -1,6 +1,7 @@
 import { getAuthContextFromRequest } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
-import { getProfile, upsertProfile } from "@/lib/server/data-store";
+import { getProfileRepository } from "@/lib/repositories";
+import { getEffectiveUserRole } from "@/lib/server/effective-role";
 import { ServiceError } from "@/lib/services/http-client";
 import { putShelbyBlob } from "@/lib/services/shelby-storage-client";
 
@@ -14,6 +15,11 @@ function extensionFromType(contentType: string) {
 export async function POST(req: Request) {
   const auth = getAuthContextFromRequest(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
+  const profileRepository = getProfileRepository();
+  const effectiveRole = await getEffectiveUserRole({
+    userId: auth.userId,
+    fallbackRole: auth.role,
+  });
 
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
@@ -36,12 +42,12 @@ export async function POST(req: Request) {
       data: new Uint8Array(arrayBuffer),
     });
 
-    const existing = await getProfile(auth.userId);
-    const updatedProfile = await upsertProfile({
+    const existing = await profileRepository.getProfile(auth.userId);
+    const updatedProfile = await profileRepository.upsertProfile({
       userId: auth.userId,
       displayName: existing?.displayName ?? `${auth.userId.slice(0, 6)}...${auth.userId.slice(-4)}`,
       avatarUrl: uploaded.readUrl,
-      role: auth.role,
+      role: existing?.role ?? effectiveRole,
       updatedAt: new Date().toISOString(),
     });
 

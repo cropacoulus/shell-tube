@@ -2,6 +2,7 @@ export type EntitlementRequest = {
   userId: string;
   profileId: string;
   titleId: string;
+  lessonId?: string;
   region: string;
 };
 

@@ -1,73 +1,63 @@
 # Stream P2P
 
-Netflix-style streaming app built with Next.js + Aptos wallet auth + Shelby storage flow.
+Creator-first video course platform architecture built around Next.js, Shelby Protocol storage, HLS playback, PostgreSQL metadata, and FFmpeg video processing.
 
-## Current Features
-- Wallet sign-in (`/signin`) using Aptos wallet adapter + challenge signature.
-- JWT cookie session and admin role from `ADMIN_WALLETS`.
-- Admin dashboard (`/admin`) for category/video management and video upload.
-- Shelby upload flow:
-  1. Register blob metadata on L1 (wallet-signed tx).
-  2. Upload blob bytes server-side to Shelby RPC (`/api/v1/storage/ingest`).
-- Watch page (`/watch/[titleId]`) with:
-  - HLS playback + ABR telemetry
-  - Shelby adapter events
-  - custom responsive controls (icons, skip 10s, speed, fullscreen, volume)
-  - mobile double-tap left/right skip
-  - auto-hide controls while playing
+## Platform Focus
+- Educational video courses instead of mass entertainment streaming.
+- Creator monetization through course purchases, subscriptions, and direct tips.
+- Transparent revenue distribution backed by watch metrics and payout ledgers.
+- Lesson-based playback with resumable progress and creator analytics.
 
-## Routes
-- User: `/`, `/watch/[titleId]`, `/profile`
-- Auth: `/signin`
-- Admin: `/admin` (wallet must be listed in `ADMIN_WALLETS`)
+## Target Stack
+- `Next.js` with App Router
+- `TailwindCSS`
+- `Shelby Protocol` decentralized storage
+- `HLS` video streaming with `hls.js`
+- `PostgreSQL` for metadata, progress, entitlements, analytics, and revenue
+- `FFmpeg` for transcoding and HLS segmentation
 
-## Environment Variables
+## Key Roles
+- `Student`: browse courses, purchase access, watch lessons, track progress
+- `Creator`: publish courses, upload lessons, view analytics, earn revenue
+- `Admin`: moderate content and manage payouts
 
-Copy `.env.example` to `.env` and fill values:
+## Core Architecture Deliverables
+- Updated system architecture diagram: [docs/system-architecture.md](/Users/rifqi/Development/Pribadi/Crypto/stream-p2p/docs/system-architecture.md)
+- Service architecture for catalog, entitlement, billing, analytics, and payouts
+- Next.js App Router folder blueprint for course, lesson, dashboard, creator, and API surfaces
+- PostgreSQL schema for users, courses, lessons, enrollments, purchases, watch progress, creator revenue, and creator analytics
+- FFmpeg to HLS to Shelby video pipeline
+- Streaming delivery model for Shelby-hosted lesson manifests
+- Creator dashboard architecture with transparent revenue reporting
 
-```bash
-AUTH_JWT_SECRET=replace-with-strong-random-secret
-ADMIN_WALLETS=0x_your_admin_wallet_address
-NEXT_PUBLIC_APTOS_NETWORK=testnet
-SHELBY_RPC_URL=https://api.testnet.shelby.xyz/shelby
-SHELBY_API_KEY=replace-with-geomi-server-key
+## Video Asset Layout
+
+```text
+courses/{courseId}/lessons/{lessonId}/
+  master.m3u8
+  1080p.m3u8
+  720p.m3u8
+  segments/*.ts
 ```
 
-Notes:
-- Use server key (`SHELBY_API_KEY`) from Geomi/Shelby provider.
-- Upload is server-side; no frontend Shelby API key is required.
-- `NEXT_PUBLIC_APTOS_NETWORK` should match wallet network.
+## Monetization Models
+- `Course purchase`: one-time purchase, example split `70% creator / 30% platform`
+- `Subscription pool`: monthly creator distribution based on entitled watch time share
+- `Tips`: direct fan support, example split `95% creator / 5% platform`
 
-## Run Locally
+Subscription revenue formula:
 
-```bash
-npm install
-npm run dev
+```text
+watch_time_share = creator_watch_time / total_platform_watch_time
+creator_subscription_payout = subscription_pool_net * watch_time_share
 ```
 
-Open `http://localhost:3000`.
+## Playback Access Rules
+- Student can stream paid lessons if they purchased the course.
+- Student can stream eligible lessons if they have an active subscription.
+- Preview lessons can remain public.
+- Lesson playback should validate entitlement before returning Shelby manifest access.
 
-## Upload & Stream Flow (Admin)
-1. Sign in with admin wallet.
-2. Open `/admin`.
-3. Upload video/manifest from file input.
-4. App performs L1 register tx from wallet.
-5. Server uploads bytes to Shelby RPC.
-6. Create video entry and watch on `/watch/[titleId]`.
-
-## Troubleshooting
-- `Blob ... has not been registered onto the L1`:
-  - L1 register transaction has not succeeded yet. Re-run upload and confirm wallet tx.
-- `Unauthorized: API key not found`:
-  - `SHELBY_API_KEY` is missing/invalid.
-- `Invalid Aptos address`:
-  - Ensure signed-in wallet address is valid and session is active.
-- Wallet verification error:
-  - Make sure wallet network matches `NEXT_PUBLIC_APTOS_NETWORK`.
-
-## Key Files
-- `app/watch/[titleId]/stream-player.tsx`: custom streaming player UI/UX.
-- `app/admin/admin-client.tsx`: admin upload + L1 register trigger.
-- `app/api/v1/storage/ingest/route.ts`: server-side Shelby ingest endpoint.
-- `lib/services/shelby-storage-client.ts`: Shelby RPC multipart upload/read client.
-- `lib/storage/blob-path.ts`: shared blob path builder.
+## Notes
+- The current repo still contains earlier streaming-oriented implementation paths such as `/watch` and admin upload flows.
+- The architecture document is the updated source of truth for the course-platform refactor direction.

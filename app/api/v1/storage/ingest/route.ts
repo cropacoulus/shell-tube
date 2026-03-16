@@ -1,4 +1,8 @@
+import { canPublishContent } from "@/lib/auth/capabilities";
+import { getContentRepository } from "@/lib/repositories";
+import { inferAssetType } from "@/lib/server/publishing-model";
 import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getEffectiveUserRole } from "@/lib/server/effective-role";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { ServiceError } from "@/lib/services/http-client";
 import { putShelbyBlob } from "@/lib/services/shelby-storage-client";
@@ -34,11 +38,15 @@ export async function POST(req: Request) {
   if (!auth) {
     return jsonError("UNAUTHORIZED", "Session is required", 401);
   }
-  if (auth.role !== "admin") {
-    return jsonError("FORBIDDEN", "Admin access required", 403);
+  const effectiveRole = await getEffectiveUserRole({
+    userId: auth.userId,
+    fallbackRole: auth.role,
+  });
+  if (!canPublishContent(effectiveRole)) {
+    return jsonError("FORBIDDEN", "Creator or admin access required", 403);
   }
   if (!isAptosAddress(auth.userId)) {
-    return jsonError("UNAUTHORIZED", "Admin session wallet address is invalid", 401);
+    return jsonError("UNAUTHORIZED", "Publisher session wallet address is invalid", 401);
   }
 
   try {
@@ -84,7 +92,17 @@ export async function POST(req: Request) {
       data: binary,
     });
 
-    return jsonOk(response, 201);
+    const asset = await getContentRepository().addMediaAsset({
+      titleId,
+      blobKey: response.blobKey,
+      fileName,
+      contentType,
+      assetType: inferAssetType({ fileName, folder, contentType }),
+      ingestStatus: "ready",
+      createdByUserId: auth.userId,
+    });
+
+    return jsonOk({ ...response, asset }, 201);
   } catch (error) {
     if (error instanceof ServiceError) {
       return jsonError("UPSTREAM_ERROR", error.message, error.status);

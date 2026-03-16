@@ -2,6 +2,8 @@ import type {
   ShelbyBootstrapRequest,
 } from "@/lib/contracts/shelby";
 import { jsonError, jsonOk } from "@/lib/server/http";
+import { getActivityRepository } from "@/lib/repositories";
+import { canBootstrapPlaybackSession } from "@/lib/server/playback-session-guard";
 import { bootstrapShelby } from "@/lib/services/shelby-coordinator-client";
 import { ServiceError } from "@/lib/services/http-client";
 import { getAuthContextFromRequest } from "@/lib/server/auth";
@@ -31,6 +33,15 @@ export async function POST(req: Request) {
   }
 
   try {
+    const guard = canBootstrapPlaybackSession({
+      session: await getActivityRepository().getPlaybackSessionRecordById(body.playbackSessionId),
+      auth,
+      titleId: body.titleId,
+    });
+    if (!guard.ok) {
+      return jsonError(guard.code, guard.message, guard.status);
+    }
+
     const response = await bootstrapShelby({
       ...body,
       userId: auth.userId,

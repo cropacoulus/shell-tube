@@ -2,7 +2,8 @@ import type {
   PlaybackTokenRequest,
   PlaybackTokenResponse,
 } from "@/lib/contracts/playback";
-import { listVideos } from "@/lib/server/data-store";
+import { getContentRepository } from "@/lib/repositories";
+import { buildPlaybackContext } from "@/lib/server/playback-context";
 import { requestJson, ServiceError } from "@/lib/services/http-client";
 import {
   getInternalBlobReadPath,
@@ -19,19 +20,25 @@ export async function createPlaybackSession(
   }
   if (!baseUrl) {
     let manifestUrl = `https://cdn.example.com/manifests/${payload.titleId}/master.m3u8`;
+    let lessonId: string | undefined;
+    let courseId: string | undefined;
     try {
+      const lesson = await getContentRepository().getLessonRecordById(payload.titleId);
+      if (!lesson || lesson.publishStatus !== "published") {
+        throw new ServiceError("playback", 404, "Lesson is not available for playback.");
+      }
+      const playbackContext = buildPlaybackContext(lesson);
+      lessonId = playbackContext.lessonId;
+      courseId = playbackContext.courseId;
+      if (!playbackContext.manifestBlobKey.trim()) {
+        throw new ServiceError(
+          "playback",
+          422,
+          "Lesson stream is not ready: upload asset to Shelby and save stream key first.",
+        );
+      }
       if (process.env.SHELBY_RPC_URL) {
-        const customVideo = (await listVideos()).find((item) => item.id === payload.titleId);
-        if (customVideo && !customVideo.manifestBlobKey.trim()) {
-          throw new ServiceError(
-            "playback",
-            422,
-            "Video stream is not ready: upload asset to Shelby and save stream key first.",
-          );
-        }
-        if (customVideo?.manifestBlobKey) {
-          manifestUrl = getInternalBlobReadPath(customVideo.manifestBlobKey);
-        }
+        manifestUrl = getInternalBlobReadPath(playbackContext.manifestBlobKey);
       }
     } catch (error) {
       if (error instanceof ServiceError) throw error;
@@ -43,6 +50,8 @@ export async function createPlaybackSession(
       token: `mock_token_${crypto.randomUUID()}`,
       expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
       manifestUrl,
+      lessonId,
+      courseId,
       drm: {
         scheme: "widevine",
         licenseServerUrl: "https://license.example.com/widevine",

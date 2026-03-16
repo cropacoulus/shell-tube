@@ -8,6 +8,7 @@ import type { DeviceClass, NetworkType } from "@/lib/contracts/common";
 import type { PlaybackTokenResponse } from "@/lib/contracts/playback";
 import type { QoeEvent, QoeEventsIngestRequest } from "@/lib/contracts/qoe";
 import type { ShelbyBootstrapResponse } from "@/lib/contracts/shelby";
+import { buildProgressPayload } from "@/lib/player/progress-payload";
 import { ShelbyAdapter } from "@/lib/player/shelby-adapter";
 
 type StreamPlayerProps = {
@@ -125,6 +126,10 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
   const playbackRef = useRef<PlaybackTokenResponse | null>(null);
   const adapterRef = useRef<ShelbyAdapter | null>(null);
   const qoeBufferRef = useRef<QoeEvent[]>([]);
+  const progressFlushRef = useRef<{ lastPositionSec: number; pending: boolean }>({
+    lastPositionSec: 0,
+    pending: false,
+  });
   const peerHitRatioRef = useRef(0);
   const lastTapRef = useRef<{ left: number; right: number }>({ left: 0, right: 0 });
   const skipOverlayTimeoutRef = useRef<number | null>(null);
@@ -166,6 +171,36 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
       body: JSON.stringify(payload),
     }).catch(() => null);
   }, []);
+
+  const flushProgress = useCallback(
+    async (force = false) => {
+      const video = videoRef.current;
+      if (!video) return;
+      const payload = buildProgressPayload({
+        lessonId: titleId,
+        currentSec: video.currentTime,
+        durationSec: Number.isFinite(video.duration) ? video.duration : 0,
+      });
+      const shouldSend =
+        force ||
+        payload.lastPositionSec === 0 ||
+        Math.abs(payload.lastPositionSec - progressFlushRef.current.lastPositionSec) >= 15 ||
+        payload.progressPercent >= 100;
+      if (!shouldSend || progressFlushRef.current.pending) return;
+
+      progressFlushRef.current.pending = true;
+      await fetch("/api/progress", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch(() => null);
+      progressFlushRef.current = {
+        lastPositionSec: payload.lastPositionSec,
+        pending: false,
+      };
+    },
+    [titleId],
+  );
 
   const queueQoe = useCallback(
     (event: Omit<QoeEvent, "deviceId">) => {
@@ -515,6 +550,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
         };
         const onTimeUpdate = () => {
           setCurrentSec(videoEl.currentTime);
+          void flushProgress();
         };
         const onLoadedMetadata = () => {
           setDurationSec(Number.isFinite(videoEl.duration) ? videoEl.duration : 0);
@@ -531,10 +567,20 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
         const onPause = () => {
           setIsPlaying(false);
           revealControls();
+          void flushProgress(true);
         };
         const onEnded = () => {
           setIsPlaying(false);
           revealControls();
+          void flushProgress(true);
+          queueQoe({
+            type: "playback_end",
+            eventTs: new Date().toISOString(),
+            playbackSessionId: playback.playbackSessionId,
+            titleId,
+            positionMs: Math.floor(videoEl.currentTime * 1000),
+            peerHitRatio: peerHitRatioRef.current,
+          });
         };
 
         videoEl.addEventListener("waiting", onWaiting);
@@ -572,11 +618,12 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
 
     return () => {
       canceled = true;
+      void flushProgress(true);
       void sendQoe();
       removeDomListeners?.();
       hls?.destroy();
     };
-  }, [deviceClass, networkType, queueQoe, region, revealControls, sendQoe, titleId]);
+  }, [deviceClass, flushProgress, networkType, queueQoe, region, revealControls, sendQoe, titleId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

@@ -2,7 +2,9 @@ import { jsonError, jsonOk } from "@/lib/server/http";
 import type {
   PlaybackTokenRequest,
 } from "@/lib/contracts/playback";
+import { getActivityRepository, getContentRepository } from "@/lib/repositories";
 import { ServiceError } from "@/lib/services/http-client";
+import { buildPlaybackContext, toEntitlementRequest } from "@/lib/server/playback-context";
 import { checkEntitlement } from "@/lib/services/entitlement-client";
 import { createPlaybackSession } from "@/lib/services/playback-client";
 import { getAuthContextFromRequest } from "@/lib/server/auth";
@@ -29,12 +31,22 @@ export async function POST(req: Request) {
   }
 
   try {
-    const entitlement = await checkEntitlement({
-      userId: auth.userId,
-      profileId: auth.profileId,
-      titleId: body.titleId,
-      region: body.region || auth.region,
-    });
+    const lesson = await getContentRepository().getLessonRecordById(body.titleId);
+    if (!lesson || lesson.publishStatus !== "published") {
+      return jsonError("NOT_FOUND", "Lesson is not available for playback", 404);
+    }
+    if (!lesson.manifestBlobKey.trim()) {
+      return jsonError("NOT_READY", "Lesson stream is not ready", 409);
+    }
+
+    const playbackContext = buildPlaybackContext(lesson);
+    const entitlement = await checkEntitlement(
+      toEntitlementRequest(playbackContext, {
+        userId: auth.userId,
+        profileId: auth.profileId,
+        region: body.region || auth.region,
+      }),
+    );
 
     if (!entitlement.allowed) {
       return jsonError(
@@ -50,7 +62,22 @@ export async function POST(req: Request) {
       profileId: auth.profileId,
       region: body.region || auth.region,
     });
-    return jsonOk(response);
+    await getActivityRepository().createPlaybackSessionRecord({
+      id: response.playbackSessionId,
+      userId: auth.userId,
+      profileId: auth.profileId,
+      courseId: playbackContext.courseId,
+      lessonId: playbackContext.lessonId,
+      manifestBlobKey: playbackContext.manifestBlobKey,
+      entitlementSource: entitlement.plan ?? entitlement.reason ?? "course_entitlement",
+      playbackToken: response.token,
+      expiresAt: response.expiresAt,
+    });
+    return jsonOk({
+      ...response,
+      lessonId: playbackContext.lessonId,
+      courseId: playbackContext.courseId,
+    });
   } catch (error) {
     if (error instanceof ServiceError) {
       return jsonError("UPSTREAM_ERROR", error.message, error.status);

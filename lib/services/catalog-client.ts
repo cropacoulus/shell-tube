@@ -1,5 +1,6 @@
 import type { HomeRail, TitleSummary } from "@/lib/contracts/catalog";
-import { listVideos } from "@/lib/server/data-store";
+import { getContentRepository } from "@/lib/repositories";
+import { buildLocalTitleSummary } from "@/lib/server/catalog-view-model";
 import { requestJson, ServiceError } from "@/lib/services/http-client";
 import { getCatalogById, getMockCatalogRailData } from "@/lib/services/mock-data";
 import { allowMockFallback } from "@/lib/services/runtime";
@@ -20,20 +21,21 @@ export async function getCatalogRails(region: string): Promise<HomeRail[]> {
 }
 
 export async function getTitleById(titleId: string): Promise<TitleSummary | null> {
-  const adminVideo = (await listVideos()).find((item) => item.id === titleId);
-  if (adminVideo) {
-    return {
-      id: adminVideo.id,
-      title: adminVideo.title,
-      synopsis: adminVideo.synopsis,
-      year: adminVideo.year,
-      maturityRating: adminVideo.maturityRating,
-      durationMin: adminVideo.durationMin,
-      genres: ["Shelby Studio"],
-      type: "movie",
-      heroImageUrl: adminVideo.heroImageUrl,
-      cardImageUrl: adminVideo.cardImageUrl,
-    };
+  const repository = getContentRepository();
+  const localCourse = await repository.getCourseRecordById(titleId);
+  if (localCourse && localCourse.publishStatus === "published") {
+    const [mainLesson] = await repository.listLessonRecordsByCourse(localCourse.id);
+    if (mainLesson && mainLesson.publishStatus === "published") {
+      return buildLocalTitleSummary(localCourse, mainLesson);
+    }
+  }
+
+  const localLesson = await repository.getLessonRecordById(titleId);
+  if (localLesson && localLesson.publishStatus === "published") {
+    const course = await repository.getCourseRecordById(localLesson.courseId);
+    if (course && course.publishStatus === "published") {
+      return buildLocalTitleSummary(course, localLesson);
+    }
   }
 
   const baseUrl = process.env.CATALOG_SERVICE_URL;

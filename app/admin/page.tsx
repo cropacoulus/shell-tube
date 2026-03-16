@@ -2,12 +2,14 @@ import { redirect } from "next/navigation";
 
 import StickyNavbar from "@/app/_components/sticky-navbar";
 import AdminClient from "@/app/admin/admin-client";
+import CreatorApplicationsPanel from "@/app/admin/creator-applications-panel";
+import { canModeratePlatform } from "@/lib/auth/capabilities";
 import { getAuthContextFromHeaders } from "@/lib/server/auth";
 
 export default async function AdminPage() {
   const auth = await getAuthContextFromHeaders();
   if (!auth) redirect("/signin");
-  if (auth.role !== "admin") {
+  if (!canModeratePlatform(auth.role)) {
     return (
       <div className="min-h-screen bg-[#06080f] text-white">
         <StickyNavbar />
@@ -27,6 +29,7 @@ export default async function AdminPage() {
       <StickyNavbar />
       <main className="pt-6">
         <AdminClient />
+        <CreatorApplicationsPanel />
       </main>
     </div>
   );
