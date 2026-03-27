@@ -2,7 +2,9 @@ import type {
   ShelbyBootstrapRequest,
 } from "@/lib/contracts/shelby";
 import { jsonError, jsonOk } from "@/lib/server/http";
+import { getPlaybackSessionFromProjection } from "@/lib/projections/playback-session-read-model";
 import { getActivityRepository } from "@/lib/repositories";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { canBootstrapPlaybackSession } from "@/lib/server/playback-session-guard";
 import { bootstrapShelby } from "@/lib/services/shelby-coordinator-client";
 import { ServiceError } from "@/lib/services/http-client";
@@ -33,8 +35,11 @@ export async function POST(req: Request) {
   }
 
   try {
+    const optionB = createOptionBConfig();
     const guard = canBootstrapPlaybackSession({
-      session: await getActivityRepository().getPlaybackSessionRecordById(body.playbackSessionId),
+      session: optionB.projectionStoreBackend === "upstash"
+        ? await getPlaybackSessionFromProjection(body.playbackSessionId)
+        : await getActivityRepository().getPlaybackSessionRecordById(body.playbackSessionId),
       auth,
       titleId: body.titleId,
     });

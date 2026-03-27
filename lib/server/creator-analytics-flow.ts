@@ -1,5 +1,10 @@
 import type { ActivityRepository } from "../repositories/activity-repository.ts";
 import type { ContentRepository } from "../repositories/content-repository.ts";
+import {
+  getCreatorAnalyticsSnapshotFromProjection,
+  getCreatorCourseAnalyticsSnapshotFromProjection,
+} from "../projections/creator-analytics-read-model.ts";
+import { createOptionBConfig } from "../runtime/option-b-config.ts";
 
 export type CreatorLessonAnalytics = {
   lessonId: string;
@@ -162,6 +167,10 @@ export async function getCreatorAnalyticsSnapshot(input?: {
   role?: "student" | "creator" | "admin";
   profileId?: string;
 }): Promise<CreatorAnalyticsSnapshot> {
+  const optionB = createOptionBConfig();
+  if (optionB.projectionStoreBackend === "upstash") {
+    return getCreatorAnalyticsSnapshotFromProjection(input);
+  }
   const { getActivityRepository, getContentRepository } = await import("../repositories/index.ts");
   return buildCreatorAnalyticsSnapshot({
     activityRepository: getActivityRepository(),
@@ -177,6 +186,10 @@ export async function getCreatorCourseAnalyticsSnapshot(input: {
   role?: "student" | "creator" | "admin";
   profileId?: string;
 }): Promise<CreatorCourseAnalyticsSnapshot> {
+  const optionB = createOptionBConfig();
+  if (optionB.projectionStoreBackend === "upstash") {
+    return getCreatorCourseAnalyticsSnapshotFromProjection(input);
+  }
   const snapshot = await getCreatorAnalyticsSnapshot({
     role: input.role,
     profileId: input.profileId,

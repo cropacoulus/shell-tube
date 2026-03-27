@@ -1,5 +1,12 @@
 import { canPublishContent } from "@/lib/auth/capabilities";
-import { getContentRepository } from "@/lib/repositories";
+import type { FilmMediaAsset } from "@/lib/contracts/admin";
+import type { DomainEvent } from "@/lib/events/contracts";
+import { createDomainEvent } from "@/lib/events/event-factory";
+import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
+import { runProjectionBatch } from "@/lib/jobs/projection-runner";
+import { getLessonFromProjection } from "@/lib/projections/lesson-read-model";
+import { getContentRepository, getEventStore } from "@/lib/repositories";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { inferAssetType } from "@/lib/server/publishing-model";
 import { getAuthContextFromRequest } from "@/lib/server/auth";
 import { getEffectiveUserRole } from "@/lib/server/effective-role";
@@ -92,15 +99,101 @@ export async function POST(req: Request) {
       data: binary,
     });
 
-    const asset = await getContentRepository().addMediaAsset({
-      titleId,
-      blobKey: response.blobKey,
-      fileName,
-      contentType,
-      assetType: inferAssetType({ fileName, folder, contentType }),
-      ingestStatus: "ready",
-      createdByUserId: auth.userId,
-    });
+    const optionB = createOptionBConfig();
+    const assetType = inferAssetType({ fileName, folder, contentType });
+    const asset: FilmMediaAsset = optionB.projectionStoreBackend === "upstash"
+      ? {
+          id: `asset_${crypto.randomUUID().slice(0, 12)}`,
+          titleId,
+          blobKey: response.blobKey,
+          fileName,
+          contentType,
+          assetType,
+          ingestStatus: "ready",
+          createdByUserId: auth.userId,
+          createdAt: new Date().toISOString(),
+        }
+      : await getContentRepository().addMediaAsset({
+          titleId,
+          blobKey: response.blobKey,
+          fileName,
+          contentType,
+          assetType,
+          ingestStatus: "ready",
+          createdByUserId: auth.userId,
+        });
+
+    const lesson = optionB.projectionStoreBackend === "upstash"
+      ? await getLessonFromProjection(titleId)
+      : await getContentRepository().getLessonRecordById(titleId);
+    const events: DomainEvent[] = [
+      createDomainEvent({
+        type: "media_asset_registered",
+        aggregateType: "media_asset",
+        aggregateId: asset.id,
+        actor: {
+          userId: auth.userId,
+          role: effectiveRole,
+        },
+        idempotencyKey: buildEventIdempotencyKey("media-asset-register", asset.id, asset.assetType),
+        payload: {
+          assetId: asset.id,
+          lessonId: titleId,
+          courseId: lesson?.courseId,
+          blobKey: asset.blobKey,
+          fileName: asset.fileName,
+          contentType: asset.contentType,
+          assetType: asset.assetType,
+          storageProvider: "shelby",
+          createdByUserId: asset.createdByUserId,
+          createdAt: asset.createdAt,
+        },
+      }),
+    ];
+
+    if (asset.assetType === "manifest" && lesson) {
+      events.push(
+        createDomainEvent({
+          type: "lesson_manifest_attached",
+          aggregateType: "lesson",
+          aggregateId: lesson.id,
+          actor: {
+            userId: auth.userId,
+            role: effectiveRole,
+          },
+          idempotencyKey: buildEventIdempotencyKey("lesson-manifest-attach", lesson.id, asset.id),
+          payload: {
+            lessonId: lesson.id,
+            courseId: lesson.courseId,
+            manifestBlobKey: asset.blobKey,
+            streamAssetId: asset.id,
+            updatedAt: new Date().toISOString(),
+          },
+        }),
+      );
+    } else if (asset.assetType === "source_video" && lesson) {
+      events.push(
+        createDomainEvent({
+          type: "lesson_asset_attached",
+          aggregateType: "lesson",
+          aggregateId: lesson.id,
+          actor: {
+            userId: auth.userId,
+            role: effectiveRole,
+          },
+          idempotencyKey: buildEventIdempotencyKey("lesson-source-attach", lesson.id, asset.id),
+          payload: {
+            lessonId: lesson.id,
+            courseId: lesson.courseId,
+            streamAssetId: asset.id,
+            updatedAt: new Date().toISOString(),
+          },
+        }),
+      );
+    }
+
+    await getEventStore().appendEvents(events);
+    await runProjectionBatch(200);
 
     return jsonOk({ ...response, asset }, 201);
   } catch (error) {

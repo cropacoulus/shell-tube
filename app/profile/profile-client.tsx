@@ -1,6 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AccountAddress, Aptos, AptosConfig } from "@aptos-labs/ts-sdk";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import {
+  createDefaultErasureCodingProvider,
+  expectedTotalChunksets,
+  generateCommitments,
+  ShelbyBlobClient,
+} from "@shelby-protocol/sdk/browser";
+
+import { resolveAppNetwork } from "@/lib/wallet/network";
 
 type ProfileData = {
   userId: string;
@@ -13,13 +23,47 @@ type ProfileClientProps = {
   initialProfile: ProfileData;
 };
 
+function normalizeAvatarUrl(avatarUrl?: string) {
+  if (!avatarUrl) return undefined;
+  if (avatarUrl.startsWith("/api/v1/storage/read/")) return avatarUrl;
+
+  try {
+    const parsed = new URL(avatarUrl);
+    const marker = "/v1/blobs/";
+    const markerIndex = parsed.pathname.indexOf(marker);
+    if (markerIndex === -1) return avatarUrl;
+    const blobKey = parsed.pathname
+      .slice(markerIndex + marker.length)
+      .split("/")
+      .filter(Boolean)
+      .map((segment) => decodeURIComponent(segment))
+      .join("/");
+    return blobKey ? `/api/v1/storage/read/${blobKey}` : avatarUrl;
+  } catch {
+    return avatarUrl;
+  }
+}
+
+const roleCopy: Record<ProfileData["role"], string> = {
+  student: "Learning access is active. Apply for creator access when you are ready to publish.",
+  creator: "Creator tools are unlocked. You can build drafts, attach media, and publish public courses.",
+  admin: "Platform operations are unlocked, including creator review and content moderation surfaces.",
+};
+
 export default function ProfileClient({ initialProfile }: ProfileClientProps) {
+  const { account, connected, signAndSubmitTransaction } = useWallet();
   const [profile, setProfile] = useState<ProfileData | null>(initialProfile);
   const [displayName, setDisplayName] = useState(initialProfile.displayName);
   const [creatorPitch, setCreatorPitch] = useState("");
   const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const currentAddress =
+    typeof account?.address === "string"
+      ? account.address
+      : typeof account?.address?.toString === "function"
+        ? account.address.toString()
+        : null;
 
   async function loadProfile() {
     const res = await fetch("/api/v1/profile");
@@ -36,9 +80,7 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
       data: Array<{ status: "pending" | "approved" | "rejected"; updatedAt: string }>;
     };
     const latest = body.data[0];
-    if (!latest) {
-      return null;
-    }
+    if (!latest) return null;
     return `${latest.status} · updated ${new Date(latest.updatedAt).toLocaleString()}`;
   }
 
@@ -95,92 +137,177 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
 
   async function uploadAvatar(file: File) {
     setError(null);
-    setStatus("Uploading avatar...");
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch("/api/v1/profile/avatar", {
-      method: "POST",
-      body: form,
-    });
-    if (!res.ok) {
-      setError("Avatar upload failed. Ensure Shelby RPC storage is configured.");
+    try {
+      if (!connected || !currentAddress || !signAndSubmitTransaction) {
+        throw new Error("Connect the same wallet first so the avatar blob can be registered on Shelby L1.");
+      }
+      if (currentAddress.toLowerCase() !== initialProfile.userId.toLowerCase()) {
+        throw new Error("Connected wallet does not match the signed-in profile.");
+      }
+
+      const ext =
+        file.type === "image/png" ? "png" : file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "bin";
+      const blobName = `profiles/avatar.${ext}`;
+      const blobData = new Uint8Array(await file.arrayBuffer());
+
+      setStatus("Registering avatar blob on Shelby L1...");
+      const provider = await createDefaultErasureCodingProvider();
+      const commitment = await generateCommitments(provider, blobData);
+      const chunksetSize = provider.config.erasure_k * provider.config.chunkSizeBytes;
+      const expirationMicros = (Date.now() + 1000 * 60 * 60 * 24 * 30) * 1000;
+
+      try {
+        const pendingTx = await signAndSubmitTransaction({
+          data: ShelbyBlobClient.createBatchRegisterBlobsPayload({
+            account: AccountAddress.from(currentAddress),
+            expirationMicros,
+            blobs: [
+              {
+                blobName,
+                blobSize: blobData.length,
+                blobMerkleRoot: commitment.blob_merkle_root,
+                numChunksets: expectedTotalChunksets(blobData.length, chunksetSize),
+              },
+            ],
+            encoding: provider.config.enumIndex,
+          }),
+        });
+        const aptos = new Aptos(new AptosConfig({ network: resolveAppNetwork() }));
+        await aptos.waitForTransaction({
+          transactionHash: pendingTx.hash,
+        });
+      } catch (registerError) {
+        const message = registerError instanceof Error ? registerError.message : "";
+        const alreadyRegistered =
+          message.toLowerCase().includes("already exists") || message.toLowerCase().includes("ealready_exists");
+        if (!alreadyRegistered) {
+          throw registerError;
+        }
+      }
+
+      setStatus("Uploading avatar...");
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/v1/profile/avatar", {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(body?.error?.message || "Avatar upload failed.");
+      }
+
+      setStatus("Avatar uploaded.");
+      await loadProfile();
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Avatar upload failed.");
       setStatus(null);
-      return;
     }
-    setStatus("Avatar uploaded.");
-    await loadProfile();
   }
 
+  const displayIdentity = profile?.displayName || `${initialProfile.userId.slice(0, 6)}...${initialProfile.userId.slice(-4)}`;
+
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 rounded-2xl border border-white/10 bg-[#10141f] p-6">
-      <h1 className="text-2xl font-semibold">Wallet Profile</h1>
-      <div className="flex items-center gap-4">
-        {profile?.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.avatarUrl} alt="avatar" className="h-20 w-20 rounded-full border border-white/20 object-cover" />
-        ) : (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10 text-2xl">
-            {profile?.userId?.slice(2, 4).toUpperCase() ?? "?"}
+    <div className="space-y-6">
+      <section className="app-panel rounded-[2rem] p-6 md:p-8">
+        <p className="app-kicker">Wallet profile</p>
+        <h1 className="mt-3 text-3xl font-semibold md:text-5xl">Set the identity the platform shows around your wallet.</h1>
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-white/68 md:text-base">
+          Your profile is the public face attached to course ownership, creator applications, and studio activity.
+        </p>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="app-panel rounded-[2rem] p-6">
+          <div className="flex items-center gap-4">
+            {profile?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={normalizeAvatarUrl(profile.avatarUrl)}
+                alt="avatar"
+                className="h-24 w-24 rounded-[1.5rem] border border-white/20 object-cover"
+              />
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded-[1.5rem] border border-white/10 bg-white/6 text-3xl font-semibold">
+                {profile?.userId?.slice(2, 4).toUpperCase() ?? "?"}
+              </div>
+            )}
+            <div className="space-y-2">
+              <span className="status-pill">{profile?.role ?? "-"}</span>
+              <h2 className="text-2xl font-semibold">{displayIdentity}</h2>
+              <p className="max-w-sm text-sm leading-7 text-white/65">{profile ? roleCopy[profile.role] : ""}</p>
+            </div>
           </div>
-        )}
-        <div className="space-y-1 text-sm text-white/75">
-          <p>{profile?.userId ?? "-"}</p>
-          <p>Role: {profile?.role ?? "-"}</p>
-        </div>
+
+          <div className="mt-6 space-y-3">
+            <div className="app-panel-soft rounded-[1.35rem] p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Wallet</p>
+              <p className="mt-2 break-all text-sm text-white/76">{profile?.userId ?? "-"}</p>
+            </div>
+            <div className="app-panel-soft rounded-[1.35rem] p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Current access</p>
+              <p className="mt-2 text-sm text-white/76 capitalize">{profile?.role ?? "-"}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="app-panel rounded-[2rem] p-6">
+          <p className="app-kicker">Profile settings</p>
+          <h2 className="mt-2 text-2xl font-semibold">Identity and avatar</h2>
+
+          <label className="mt-5 block text-sm">
+            Display name
+            <input
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              className="form-shell mt-2"
+            />
+          </label>
+
+          <label className="mt-4 block text-sm">
+            Upload avatar
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void uploadAvatar(file);
+              }}
+              className="mt-2 block w-full text-xs text-white/70 file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black"
+            />
+          </label>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button onClick={saveProfile} className="app-primary-button px-5 py-3 text-sm">
+              Save profile
+            </button>
+            {status ? <p className="text-sm text-emerald-300">{status}</p> : null}
+            {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+          </div>
+        </section>
       </div>
 
-      <label className="block text-sm">
-        Display Name
-        <input
-          value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)}
-          className="mt-1 w-full rounded-md border border-white/20 bg-black/30 px-3 py-2"
-        />
-      </label>
-
-      <label className="block text-sm">
-        Upload Avatar
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void uploadAvatar(file);
-          }}
-          className="mt-1 block w-full text-xs"
-        />
-      </label>
-
-      <button onClick={saveProfile} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black">
-        Save Profile
-      </button>
-
       {profile?.role === "student" ? (
-        <section className="rounded-xl border border-white/10 bg-black/20 p-4">
-          <h2 className="text-lg font-semibold">Apply for Creator Access</h2>
-          <p className="mt-2 text-sm text-white/70">
-            Submit a short pitch. Admin can review and approve your wallet for creator tools.
+        <section className="app-panel rounded-[2rem] p-6">
+          <p className="app-kicker">Creator access</p>
+          <h2 className="mt-2 text-2xl font-semibold">Apply to become a creator</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-white/65">
+            Tell the platform what kind of course catalog you want to build. Once approved, Studio and creator analytics unlock automatically.
           </p>
           <textarea
             value={creatorPitch}
             onChange={(event) => setCreatorPitch(event.target.value)}
             placeholder="Describe the kind of educational content you want to publish."
-            className="mt-3 min-h-28 w-full rounded-md border border-white/20 bg-black/30 px-3 py-2 text-sm"
+            className="form-shell mt-4 min-h-32 text-sm"
           />
-          <div className="mt-3 flex items-center gap-3">
-            <button
-              onClick={submitCreatorApplication}
-              className="rounded-md border border-cyan-300/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100"
-            >
-              Submit Application
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button onClick={submitCreatorApplication} className="app-primary-button px-5 py-3 text-sm">
+              Submit application
             </button>
-            {applicationStatus ? <p className="text-xs text-white/55">Latest application: {applicationStatus}</p> : null}
+            {applicationStatus ? <span className="status-pill">{applicationStatus}</span> : null}
           </div>
         </section>
       ) : null}
-
-      {status ? <p className="text-sm text-cyan-200">{status}</p> : null}
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
     </div>
   );
 }

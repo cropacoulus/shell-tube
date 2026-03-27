@@ -1,4 +1,6 @@
 import type { ContinueWatchingItem } from "../contracts/catalog.ts";
+import { getDashboardSnapshotFromProjection } from "../projections/dashboard-read-model.ts";
+import { createOptionBConfig } from "../runtime/option-b-config.ts";
 import type { ActivityRepository } from "../repositories/activity-repository.ts";
 import type { ContentRepository } from "../repositories/content-repository.ts";
 
@@ -54,6 +56,10 @@ export async function buildDashboardSnapshot(
 }
 
 export async function getDashboardSnapshot(userId: string): Promise<DashboardSnapshot> {
+  const optionB = createOptionBConfig();
+  if (optionB.projectionStoreBackend === "upstash") {
+    return getDashboardSnapshotFromProjection(userId);
+  }
   const { getActivityRepository, getContentRepository } = await import("../repositories/index.ts");
   return buildDashboardSnapshot(userId, {
     activityRepository: getActivityRepository(),

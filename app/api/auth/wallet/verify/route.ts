@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import {
+  AptosConfig,
   Ed25519PublicKey,
   Ed25519Signature,
   PublicKey,
@@ -17,12 +18,20 @@ import { normalizeUserRole } from "@/lib/auth/capabilities";
 import { resolveEffectiveUserRole } from "@/lib/auth/effective-role";
 import { signSessionToken } from "@/lib/auth/jwt";
 import { isAdminWallet, isAptosAddress } from "@/lib/auth/wallet";
-import { getProfileRepository } from "@/lib/repositories";
+import { createDomainEvent } from "@/lib/events/event-factory";
+import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
+import { runProjectionBatch } from "@/lib/jobs/projection-runner";
+import { getProfileFromProjection } from "@/lib/projections/profile-read-model";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
+import { getEventStore, getProfileRepository } from "@/lib/repositories";
+import { resolveAppNetwork } from "@/lib/wallet/network";
 
 type WalletVerifyRequest = {
   address: string;
   signature: string;
   publicKey: string;
+  signatureCandidates?: string[];
+  publicKeyCandidates?: string[];
   message: string;
   fullMessage: string;
   nonce: string;
@@ -54,6 +63,12 @@ function isValid(body: unknown): body is WalletVerifyRequest {
     typeof candidate.address === "string" &&
     typeof candidate.signature === "string" &&
     typeof candidate.publicKey === "string" &&
+    (candidate.signatureCandidates === undefined ||
+      (Array.isArray(candidate.signatureCandidates) &&
+        candidate.signatureCandidates.every((item) => typeof item === "string"))) &&
+    (candidate.publicKeyCandidates === undefined ||
+      (Array.isArray(candidate.publicKeyCandidates) &&
+        candidate.publicKeyCandidates.every((item) => typeof item === "string"))) &&
     typeof candidate.message === "string" &&
     typeof candidate.fullMessage === "string" &&
     typeof candidate.nonce === "string"
@@ -90,6 +105,13 @@ function parseSignature(input: string): Signature {
   try {
     return deserializeSignature(input);
   } catch {
+    const normalized = input.startsWith("0x") ? input.slice(2) : input;
+    if (normalized.length === 128) {
+      return new Ed25519Signature(`0x${normalized}`);
+    }
+    if (normalized.length === 130 && normalized.startsWith("40")) {
+      return new Ed25519Signature(`0x${normalized.slice(2)}`);
+    }
     return new Ed25519Signature(input);
   }
 }
@@ -173,13 +195,57 @@ export async function POST(req: Request) {
 
   let verified = false;
   let verifyError = "";
+  const verifyAttempts: string[] = [];
   try {
-    const publicKey = parsePublicKey(body.publicKey);
-    const signature = parseSignature(body.signature);
-    verified = publicKey.verifySignature({
-      message: new TextEncoder().encode(body.fullMessage),
-      signature,
-    });
+    const messageBytes = new TextEncoder().encode(body.fullMessage);
+    const publicKeyCandidates = Array.from(new Set([body.publicKey, ...(body.publicKeyCandidates ?? [])]));
+    const signatureCandidates = Array.from(new Set([body.signature, ...(body.signatureCandidates ?? [])]));
+
+    for (const publicKeyValue of publicKeyCandidates) {
+      let publicKey: PublicKey;
+      try {
+        publicKey = parsePublicKey(publicKeyValue);
+        verifyAttempts.push(`publicKey ok (${publicKey.constructor.name}) len=${publicKeyValue.replace(/^0x/, "").length}`);
+      } catch (error) {
+        verifyError = error instanceof Error ? error.message : "Unable to parse public key";
+        verifyAttempts.push(`publicKey fail len=${publicKeyValue.replace(/^0x/, "").length}: ${verifyError}`);
+        continue;
+      }
+
+      for (const signatureValue of signatureCandidates) {
+        try {
+          const signature = parseSignature(signatureValue);
+          verifyAttempts.push(`signature ok (${signature.constructor.name}) len=${signatureValue.replace(/^0x/, "").length}`);
+          if (
+            "verifySignatureAsync" in publicKey &&
+            typeof publicKey.verifySignatureAsync === "function"
+          ) {
+            verified = await publicKey.verifySignatureAsync({
+              aptosConfig: new AptosConfig({ network: resolveAppNetwork() }),
+              message: messageBytes,
+              signature,
+              options: {
+                throwErrorWithReason: true,
+              },
+            });
+          } else {
+            verified = publicKey.verifySignature({
+              message: messageBytes,
+              signature,
+            });
+          }
+          verifyAttempts.push(`verify result=${verified}`);
+        } catch (error) {
+          verifyError = error instanceof Error ? error.message : "Unknown signature error";
+          verified = false;
+          verifyAttempts.push(`signature/verify fail len=${signatureValue.replace(/^0x/, "").length}: ${verifyError}`);
+        }
+
+        if (verified) break;
+      }
+
+      if (verified) break;
+    }
   } catch (error) {
     verifyError = error instanceof Error ? error.message : "Unknown signature error";
     verified = false;
@@ -191,10 +257,10 @@ export async function POST(req: Request) {
         ok: false,
         error: {
           code: "INVALID_SIGNATURE",
-          message:
-            process.env.NODE_ENV === "production" || !verifyError
-              ? "Aptos signature verification failed"
-              : `Aptos signature verification failed: ${verifyError}`,
+          message: !verifyError
+            ? "Aptos signature verification failed"
+            : `Aptos signature verification failed: ${verifyError}`,
+          details: verifyAttempts,
         },
       },
       { status: 401 },
@@ -204,7 +270,10 @@ export async function POST(req: Request) {
   const envRole = normalizeUserRole(
     isAdminWallet(body.address) ? "admin" : isCreatorWallet(body.address) ? "creator" : "student",
   );
-  const existingProfile = await getProfileRepository().getProfile(body.address.toLowerCase());
+  const optionB = createOptionBConfig();
+  const existingProfile = optionB.projectionStoreBackend === "upstash"
+    ? await getProfileFromProjection(body.address.toLowerCase())
+    : await getProfileRepository().getProfile(body.address.toLowerCase());
   const role = resolveEffectiveUserRole({
     fallbackRole: envRole,
     storedRole: existingProfile?.role,
@@ -221,13 +290,31 @@ export async function POST(req: Request) {
     secret,
   );
 
-  await getProfileRepository().upsertProfile({
+  const updatedProfile = await getProfileRepository().upsertProfile({
     userId: body.address.toLowerCase(),
     displayName: existingProfile?.displayName ?? `${body.address.slice(0, 6)}...${body.address.slice(-4)}`,
     avatarUrl: existingProfile?.avatarUrl,
     role,
     updatedAt: new Date().toISOString(),
   });
+  await getEventStore().appendEvent(
+    createDomainEvent({
+      type: "profile_updated",
+      aggregateType: "profile",
+      aggregateId: updatedProfile.userId,
+      actor: {
+        userId: updatedProfile.userId,
+        role,
+      },
+      idempotencyKey: buildEventIdempotencyKey(
+        "wallet-verify-profile-sync",
+        updatedProfile.userId,
+        updatedProfile.updatedAt,
+      ),
+      payload: updatedProfile,
+    }),
+  );
+  await runProjectionBatch(200);
 
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,

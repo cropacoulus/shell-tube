@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 
 import StickyNavbar from "@/app/_components/sticky-navbar";
 import StreamPlayer from "@/app/watch/[titleId]/stream-player";
+import { getLessonDetailFromProjection } from "@/lib/projections/lesson-detail-read-model";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { getAuthContextFromHeaders } from "@/lib/server/auth";
 import { getCourseById, getLessonById } from "@/lib/server/course-flow";
 
@@ -15,26 +17,38 @@ export default async function LessonPage({ params }: PageProps) {
   if (!auth) redirect("/signin");
 
   const { lessonId } = await params;
-  const lesson = await getLessonById(lessonId);
-  if (!lesson) notFound();
+  const optionB = createOptionBConfig();
+  let lesson = await getLessonById(lessonId);
+  let course = lesson ? await getCourseById(lesson.courseId) : null;
 
-  const course = await getCourseById(lesson.courseId);
-  if (!course) notFound();
+  if (optionB.projectionStoreBackend === "upstash") {
+    const detail = await getLessonDetailFromProjection(lessonId);
+    if (!detail) notFound();
+    lesson = detail.lesson;
+    course = detail.course;
+  }
+
+  if (!lesson || !course) notFound();
 
   return (
-    <div className="min-h-screen bg-[#06080f] text-white">
+    <div className="app-shell">
       <StickyNavbar />
-      <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-5 sm:px-6 sm:py-6 md:space-y-6 md:px-10 md:py-8">
-        <Link href={`/courses/${course.id}`} className="inline-block text-sm text-white/70 hover:text-white">
+      <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-5 sm:px-6 md:px-10 md:py-10">
+        <Link href={`/courses/${course.id}`} className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white">
           Back to course
         </Link>
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-wide text-[#ff594f]">Lesson Playback</p>
-          <h1 className="text-2xl font-semibold leading-tight md:text-3xl">{lesson.title}</h1>
-          <p className="max-w-3xl text-sm leading-relaxed text-white/75">{lesson.description}</p>
-        </header>
-        <StreamPlayer titleId={lesson.id} region={auth.region} />
-      </div>
+        <section className="app-panel rounded-[2rem] p-6 md:p-8">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="status-pill">{course.category}</span>
+            <span className="status-pill">{course.title}</span>
+          </div>
+          <h1 className="mt-4 text-2xl font-semibold leading-tight md:text-4xl">{lesson.title}</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-white/72 md:text-base">{lesson.description}</p>
+        </section>
+        <div className="app-panel rounded-[2rem] p-3 md:p-4">
+          <StreamPlayer titleId={lesson.id} region={auth.region} />
+        </div>
+      </main>
     </div>
   );
 }

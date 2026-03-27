@@ -64,83 +64,89 @@ export default async function CreatorCourseDetailPage({ params }: PageProps) {
   );
 
   const unlockedCount = entitlementSummary.filter((item) => item.allowed).length;
+  const publishedLessons = analytics.lessons.filter((lesson) => lesson.publishStatus === "published").length;
 
   return (
-    <div className="min-h-screen bg-[#06080f] text-white">
+    <div className="app-shell">
       <StickyNavbar />
-      <main className="mx-auto w-full max-w-6xl space-y-6 px-6 py-8 md:px-10">
+      <main className="mx-auto w-full max-w-6xl space-y-6 px-6 py-8 md:px-10 md:py-12">
         <Link href="/creator/courses" className="inline-block text-sm text-white/70 hover:text-white">
-          Back to creator courses
+          Back to creator library
         </Link>
-        <section className="rounded-2xl border border-white/10 bg-[#10141f] p-5">
-          <p className="text-xs uppercase tracking-wide text-[#ff594f]">{course.category}</p>
-          <h1 className="mt-1 text-3xl font-semibold">{course.title}</h1>
-          <p className="mt-2 text-sm text-white/75">{course.description}</p>
+        <section className="app-panel rounded-[2rem] p-6 md:p-8">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="status-pill">{course.category}</span>
+            <span className="status-pill">{publishedLessons} published lesson{publishedLessons === 1 ? "" : "s"}</span>
+            <span className="status-pill">{course.year}</span>
+          </div>
+          <h1 className="mt-4 text-3xl font-semibold md:text-5xl">{course.title}</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-white/72 md:text-base">{course.description}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Total Lessons</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Total lessons</p>
               <p className="mt-1 text-2xl font-semibold">{lessons.length}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Unlocked (Current User)</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Available to current wallet</p>
               <p className="mt-1 text-2xl font-semibold">{unlockedCount}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Course Year</p>
-              <p className="mt-1 text-2xl font-semibold">{course.year}</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Published lessons</p>
+              <p className="mt-1 text-2xl font-semibold">{publishedLessons}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Total Views</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Total views</p>
               <p className="mt-1 text-2xl font-semibold">{analytics.totalViews}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Watch Time</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Watch time</p>
               <p className="mt-1 text-2xl font-semibold">{analytics.totalWatchTimeMin} min</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Average Completion</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Average completion</p>
               <p className="mt-1 text-2xl font-semibold">{analytics.averageCompletionRate}%</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Projected Course Revenue</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Projected course revenue</p>
               <p className="mt-1 text-2xl font-semibold">${revenue.projectedCourseRevenueUsd.toFixed(2)}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Projected Subscription Share</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Projected subscription share</p>
               <p className="mt-1 text-2xl font-semibold">${revenue.projectedSubscriptionShareUsd.toFixed(2)}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Projected Payout Total</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Projected payout total</p>
               <p className="mt-1 text-2xl font-semibold">${revenue.totalProjectedRevenueUsd.toFixed(2)}</p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-white/60">Settled Payout Total</p>
+            <div className="metric-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Settled payout total</p>
               <p className="mt-1 text-2xl font-semibold">${revenue.totalSettledRevenueUsd.toFixed(2)}</p>
             </div>
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-[#10141f] p-5">
+        <section className="app-panel rounded-[2rem] p-6">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Revenue Ledger</h2>
-              <p className="mt-1 text-xs text-white/50">Audit-friendly placeholder until payments and subscriptions are implemented end-to-end.</p>
+              <p className="app-kicker">Revenue view</p>
+              <h2 className="mt-2 text-2xl font-semibold">Revenue ledger</h2>
+              <p className="mt-2 text-sm text-white/60">Operational payout signals for this course. The raw formula payload is intentionally hidden from the main creator view.</p>
             </div>
           </div>
           <div className="space-y-2">
             {revenue.payoutLedger.length > 0 ? revenue.payoutLedger.map((entry) => (
-              <div key={entry.id} className="grid gap-3 rounded-lg border border-white/10 px-3 py-3 md:grid-cols-[0.9fr_0.6fr_1.6fr]">
+              <div key={entry.id} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 md:grid-cols-[1fr_0.8fr_0.8fr]">
                 <div>
-                  <p className="text-xs text-white/55">{entry.sourceType} · {entry.status}</p>
-                  <p className="mt-1 text-sm font-semibold">${entry.amountUsd.toFixed(2)}</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/45">{entry.sourceType}</p>
+                  <p className="mt-2 text-lg font-semibold">${entry.amountUsd.toFixed(2)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-white/55">Period</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/45">Period</p>
                   <p className="mt-1 text-sm font-semibold">{entry.periodKey}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-white/55">Formula Snapshot</p>
-                  <p className="mt-1 break-all font-mono text-[11px] leading-5 text-white/70">{entry.formulaSnapshot}</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/45">Status</p>
+                  <p className="mt-1 text-sm font-semibold capitalize">{entry.status}</p>
                 </div>
               </div>
             )) : (
@@ -151,18 +157,21 @@ export default async function CreatorCourseDetailPage({ params }: PageProps) {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-[#10141f] p-5">
+        <section className="app-panel rounded-[2rem] p-6">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Lessons</h2>
-            <Link href="/creator/uploads" className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-black">
-              Open Creator Editor
+            <div>
+              <p className="app-kicker">Release breakdown</p>
+              <h2 className="mt-2 text-2xl font-semibold">Lessons</h2>
+            </div>
+            <Link href="/creator/uploads" className="app-primary-button px-4 py-2 text-sm">
+              Open studio
             </Link>
           </div>
           <div className="space-y-2">
             {lessons.map((lesson, index) => (
-              <div key={lesson.id} className="grid gap-3 rounded-lg border border-white/10 px-3 py-3 md:grid-cols-[1.5fr_repeat(4,minmax(0,1fr))]">
+              <div key={lesson.id} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 md:grid-cols-[1.5fr_repeat(4,minmax(0,1fr))]">
                 <div>
-                  <p className="text-xs text-white/60">Lesson {index + 1}</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/45">Lesson {index + 1}</p>
                   <p className="font-medium">{lesson.title}</p>
                 </div>
                 <div>

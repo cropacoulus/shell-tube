@@ -99,7 +99,7 @@ export function getInternalBlobReadPath(blobKey: string) {
 export async function putShelbyBlob(
   payload: ShelbyBlobWriteRequest,
 ): Promise<ShelbyBlobWriteResponse> {
-  const { rpcUrl, apiKey } = getShelbyRpcConfig();
+  const { rpcUrl, apiKey, authHeader } = getShelbyRpcConfig();
   if (!rpcUrl) {
     throw new ServiceError("shelby-storage", 503, "SHELBY_RPC_URL is not configured");
   }
@@ -107,7 +107,9 @@ export async function putShelbyBlob(
     throw new ServiceError("shelby-storage", 503, "SHELBY_API_KEY or SHELBY_RPC_API_KEY is not configured");
   }
 
-  const authHeader = { Authorization: apiKey.startsWith("Bearer ") ? apiKey : `Bearer ${apiKey}` };
+  const authHeaders = {
+    [authHeader]: authHeader === "authorization" && !apiKey.startsWith("Bearer ") ? `Bearer ${apiKey}` : apiKey,
+  };
 
   const partSize = 5 * 1024 * 1024;
   let startResponse: Response;
@@ -116,7 +118,7 @@ export async function putShelbyBlob(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...authHeader,
+        ...authHeaders,
       },
       body: JSON.stringify({
         rawAccount: payload.accountAddress,
@@ -155,7 +157,7 @@ export async function putShelbyBlob(
         method: "PUT",
         headers: {
           "Content-Type": "application/octet-stream",
-          ...authHeader,
+          ...authHeaders,
         },
         body: Buffer.from(partData),
       },
@@ -176,7 +178,7 @@ export async function putShelbyBlob(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...authHeader,
+        ...authHeaders,
       },
     },
   );

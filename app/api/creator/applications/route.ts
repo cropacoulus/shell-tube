@@ -1,4 +1,13 @@
-import { getCreatorApplicationRepository, getProfileRepository } from "@/lib/repositories";
+import { createDomainEvent } from "@/lib/events/event-factory";
+import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
+import { runProjectionBatch } from "@/lib/jobs/projection-runner";
+import {
+  getLatestCreatorApplicationForUserFromProjection,
+  listCreatorApplicationsForUserFromProjection,
+} from "@/lib/projections/creator-application-read-model";
+import { getProfileFromProjection } from "@/lib/projections/profile-read-model";
+import { getCreatorApplicationRepository, getEventStore, getProfileRepository } from "@/lib/repositories";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { getAuthContextFromRequest } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { getEffectiveUserRole } from "@/lib/server/effective-role";
@@ -16,6 +25,12 @@ function isValid(body: unknown): body is CreatorApplicationCreateRequest {
 export async function GET(req: Request) {
   const auth = getAuthContextFromRequest(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
+
+  const optionB = createOptionBConfig();
+  if (optionB.projectionStoreBackend === "upstash") {
+    const applications = await listCreatorApplicationsForUserFromProjection(auth.userId);
+    return jsonOk(applications);
+  }
 
   const applications = await getCreatorApplicationRepository().listCreatorApplicationsByUser(auth.userId);
   return jsonOk(applications);
@@ -38,9 +53,11 @@ export async function POST(req: Request) {
     return jsonError("INVALID_REQUEST", "Your account already has creator access", 409);
   }
 
+  const optionB = createOptionBConfig();
   const repository = getCreatorApplicationRepository();
-  const existing = await repository.listCreatorApplicationsByUser(auth.userId);
-  const latest = existing[0];
+  const latest = optionB.projectionStoreBackend === "upstash"
+    ? await getLatestCreatorApplicationForUserFromProjection(auth.userId)
+    : (await repository.listCreatorApplicationsByUser(auth.userId))[0];
   if (latest && (latest.status === "pending" || latest.status === "approved")) {
     return jsonError(
       "INVALID_REQUEST",
@@ -51,11 +68,38 @@ export async function POST(req: Request) {
     );
   }
 
-  const profile = await getProfileRepository().getProfile(auth.userId);
+  const profile = optionB.projectionStoreBackend === "upstash"
+    ? await getProfileFromProjection(auth.userId)
+    : await getProfileRepository().getProfile(auth.userId);
   const created = await repository.createCreatorApplication({
     userId: auth.userId,
     displayName: profile?.displayName ?? `${auth.userId.slice(0, 6)}...${auth.userId.slice(-4)}`,
     pitch: body.pitch.trim(),
   });
+
+  await getEventStore().appendEvent(
+    createDomainEvent({
+      type: "creator_application_submitted",
+      aggregateType: "creator_application",
+      aggregateId: created.id,
+      actor: {
+        userId: auth.userId,
+        role: auth.role,
+      },
+      idempotencyKey: buildEventIdempotencyKey("creator-application-submit", auth.userId, created.id),
+      payload: {
+        applicationId: created.id,
+        userId: created.userId,
+        displayName: created.displayName,
+        pitch: created.pitch,
+        status: created.status,
+        createdAt: created.createdAt,
+        updatedAt: created.updatedAt,
+      },
+    }),
+  );
+
+  await runProjectionBatch(200);
+
   return jsonOk(created, 201);
 }

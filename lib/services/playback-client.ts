@@ -2,7 +2,9 @@ import type {
   PlaybackTokenRequest,
   PlaybackTokenResponse,
 } from "@/lib/contracts/playback";
+import { getPublishedLessonFromProjection } from "@/lib/projections/lesson-read-model";
 import { getContentRepository } from "@/lib/repositories";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { buildPlaybackContext } from "@/lib/server/playback-context";
 import { requestJson, ServiceError } from "@/lib/services/http-client";
 import {
@@ -23,7 +25,10 @@ export async function createPlaybackSession(
     let lessonId: string | undefined;
     let courseId: string | undefined;
     try {
-      const lesson = await getContentRepository().getLessonRecordById(payload.titleId);
+      const lesson =
+        createOptionBConfig().projectionStoreBackend === "upstash"
+          ? await getPublishedLessonFromProjection(payload.titleId)
+          : await getContentRepository().getLessonRecordById(payload.titleId);
       if (!lesson || lesson.publishStatus !== "published") {
         throw new ServiceError("playback", 404, "Lesson is not available for playback.");
       }

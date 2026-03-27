@@ -1,9 +1,14 @@
 import { getAuthContextFromRequest } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
-import { getProfileRepository } from "@/lib/repositories";
+import { getProfileFromProjection } from "@/lib/projections/profile-read-model";
+import { getEventStore, getProfileRepository } from "@/lib/repositories";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { getEffectiveUserRole } from "@/lib/server/effective-role";
+import { createDomainEvent } from "@/lib/events/event-factory";
+import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
+import { runProjectionBatch } from "@/lib/jobs/projection-runner";
 import { ServiceError } from "@/lib/services/http-client";
-import { putShelbyBlob } from "@/lib/services/shelby-storage-client";
+import { getInternalBlobReadPath, putShelbyBlob } from "@/lib/services/shelby-storage-client";
 
 function extensionFromType(contentType: string) {
   if (contentType === "image/png") return "png";
@@ -12,10 +17,23 @@ function extensionFromType(contentType: string) {
   return "bin";
 }
 
+function mapAvatarUploadError(error: ServiceError, userId: string) {
+  const normalized = error.message.toLowerCase();
+  if (normalized.includes("has not been registered onto the l1")) {
+    return jsonError(
+      "INVALID_REQUEST",
+      `Avatar upload requires an L1 blob registration first. Register \`profiles/avatar\` for wallet ${userId.slice(0, 8)}... before uploading.`,
+      422,
+    );
+  }
+  return jsonError("UPSTREAM_ERROR", error.message, error.status);
+}
+
 export async function POST(req: Request) {
   const auth = getAuthContextFromRequest(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
   const profileRepository = getProfileRepository();
+  const optionB = createOptionBConfig();
   const effectiveRole = await getEffectiveUserRole({
     userId: auth.userId,
     fallbackRole: auth.role,
@@ -42,19 +60,35 @@ export async function POST(req: Request) {
       data: new Uint8Array(arrayBuffer),
     });
 
-    const existing = await profileRepository.getProfile(auth.userId);
+    const existing = optionB.projectionStoreBackend === "upstash"
+      ? await getProfileFromProjection(auth.userId)
+      : await profileRepository.getProfile(auth.userId);
     const updatedProfile = await profileRepository.upsertProfile({
       userId: auth.userId,
       displayName: existing?.displayName ?? `${auth.userId.slice(0, 6)}...${auth.userId.slice(-4)}`,
-      avatarUrl: uploaded.readUrl,
+      avatarUrl: getInternalBlobReadPath(uploaded.blobKey),
       role: existing?.role ?? effectiveRole,
       updatedAt: new Date().toISOString(),
     });
+    await getEventStore().appendEvent(
+      createDomainEvent({
+        type: "profile_updated",
+        aggregateType: "profile",
+        aggregateId: updatedProfile.userId,
+        actor: {
+          userId: auth.userId,
+          role: auth.role,
+        },
+        idempotencyKey: buildEventIdempotencyKey("profile-avatar-update", updatedProfile.userId, updatedProfile.updatedAt),
+        payload: updatedProfile,
+      }),
+    );
+    await runProjectionBatch(200);
 
     return jsonOk(updatedProfile);
   } catch (error) {
     if (error instanceof ServiceError) {
-      return jsonError("UPSTREAM_ERROR", error.message, error.status);
+      return mapAvatarUploadError(error, auth.userId);
     }
     return jsonError("INTERNAL_ERROR", "Unable to upload avatar", 500);
   }

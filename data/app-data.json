@@ -3,14 +3,15 @@
     "user_demo_001": {
       "userId": "user_demo_001",
       "displayName": "user_d..._001",
-      "role": "user",
+      "role": "student",
       "updatedAt": "2026-03-15T14:25:23.826Z"
     },
     "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2": {
       "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
       "displayName": "0xf646...c7d2",
+      "avatarUrl": "https://api.testnet.shelby.xyz/shelby/v1/blobs/0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/profiles/avatar.webp",
       "role": "creator",
-      "updatedAt": "2026-03-16T01:27:52.834Z"
+      "updatedAt": "2026-03-27T02:01:17.973Z"
     }
   },
   "categories": [
@@ -111,32 +112,194 @@
       "description": "Productivity, communication, habits, and self-improvement."
     }
   ],
-  "videos": [
+  "courses": [
     {
       "id": "vid_385e03a6",
-      "createdAt": "2026-03-15T17:05:33.078Z",
       "title": "Comedy Romantic",
       "synopsis": "",
       "year": 2026,
-      "maturityRating": "13+",
-      "durationMin": 90,
       "categoryId": "cat_4322c397",
       "heroImageUrl": "",
       "cardImageUrl": "",
-      "manifestBlobKey": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/titles/comedy-romantic/videos/file_example_MP4_640_3MG.mp4"
+      "publishStatus": "published",
+      "createdAt": "2026-03-15T17:05:33.078Z"
     },
     {
       "id": "vid_bcc291a5",
-      "createdAt": "2026-03-16T01:31:46.898Z",
       "title": "Bunga di taman",
       "synopsis": "seandainya kau bunga ditaman hatiku",
       "year": 2026,
-      "maturityRating": "13+",
-      "durationMin": 90,
       "categoryId": "cat_0d394a2c",
       "heroImageUrl": "",
       "cardImageUrl": "",
-      "manifestBlobKey": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/titles/bunga-di-taman/videos/file_example_MP4_1280_10MG.mp4"
+      "publishStatus": "published",
+      "createdAt": "2026-03-16T01:31:46.898Z"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "lesson-vid_385e03a6-main",
+      "courseId": "vid_385e03a6",
+      "title": "Comedy Romantic • Main Lesson",
+      "synopsis": "",
+      "durationMin": 90,
+      "maturityRating": "13+",
+      "manifestBlobKey": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/titles/comedy-romantic/videos/file_example_MP4_640_3MG.mp4",
+      "publishStatus": "published",
+      "createdAt": "2026-03-15T17:05:33.078Z"
+    },
+    {
+      "id": "lesson-vid_bcc291a5-main",
+      "courseId": "vid_bcc291a5",
+      "title": "Bunga di taman • Main Lesson",
+      "synopsis": "seandainya kau bunga ditaman hatiku",
+      "durationMin": 90,
+      "maturityRating": "13+",
+      "manifestBlobKey": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/titles/bunga-di-taman/videos/file_example_MP4_1280_10MG.mp4",
+      "publishStatus": "published",
+      "createdAt": "2026-03-16T01:31:46.898Z"
+    }
+  ],
+  "mediaAssets": [],
+  "lessonProgress": [],
+  "courseEnrollments": [],
+  "playbackSessions": [],
+  "qoeEvents": [],
+  "creatorPayoutLedger": [],
+  "creatorApplications": [],
+  "domainEvents": [
+    {
+      "id": "evt_844022e8-ef5",
+      "type": "profile_updated",
+      "aggregateType": "profile",
+      "aggregateId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "occurredAt": "2026-03-26T10:10:03.786Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "wallet-verify-profile-sync:0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2:2026-03-26T10:10:03.784Z",
+      "version": 1,
+      "payload": {
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "displayName": "0xf646...c7d2",
+        "role": "creator",
+        "updatedAt": "2026-03-26T10:10:03.784Z"
+      }
+    },
+    {
+      "id": "evt_4e24bea8-236",
+      "type": "profile_updated",
+      "aggregateType": "profile",
+      "aggregateId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "occurredAt": "2026-03-26T10:19:44.651Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "profile-avatar-update:0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2:2026-03-26T10:19:44.647Z",
+      "version": 1,
+      "payload": {
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "displayName": "0xf646...c7d2",
+        "avatarUrl": "https://api.testnet.shelby.xyz/shelby/v1/blobs/0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/profiles/avatar.webp",
+        "role": "creator",
+        "updatedAt": "2026-03-26T10:19:44.647Z"
+      }
+    },
+    {
+      "id": "evt_4a6e8c68-7af",
+      "type": "profile_updated",
+      "aggregateType": "profile",
+      "aggregateId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "occurredAt": "2026-03-26T10:19:49.371Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "profile-update:0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2:2026-03-26T10:19:49.370Z",
+      "version": 1,
+      "payload": {
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "displayName": "0xf646...c7d2",
+        "avatarUrl": "https://api.testnet.shelby.xyz/shelby/v1/blobs/0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/profiles/avatar.webp",
+        "role": "creator",
+        "updatedAt": "2026-03-26T10:19:49.370Z"
+      }
+    },
+    {
+      "id": "evt_f4808743-66b",
+      "type": "profile_updated",
+      "aggregateType": "profile",
+      "aggregateId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "occurredAt": "2026-03-27T02:01:17.975Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "wallet-verify-profile-sync:0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2:2026-03-27T02:01:17.973Z",
+      "version": 1,
+      "payload": {
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "displayName": "0xf646...c7d2",
+        "avatarUrl": "https://api.testnet.shelby.xyz/shelby/v1/blobs/0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/profiles/avatar.webp",
+        "role": "creator",
+        "updatedAt": "2026-03-27T02:01:17.973Z"
+      }
+    },
+    {
+      "id": "evt_65b9739f-299",
+      "type": "course_created",
+      "aggregateType": "course",
+      "aggregateId": "vid_758f55d1",
+      "occurredAt": "2026-03-27T02:13:31.769Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "creator-content-course-create:vid_758f55d1",
+      "version": 1,
+      "payload": {
+        "courseId": "vid_758f55d1",
+        "creatorProfileId": "wallet-main",
+        "title": "",
+        "synopsis": "",
+        "year": 2026,
+        "categoryId": "cat_4322c397",
+        "heroImageUrl": "",
+        "cardImageUrl": "",
+        "publishStatus": "draft",
+        "createdAt": "2026-03-27T02:13:31.766Z",
+        "updatedAt": "2026-03-27T02:13:31.766Z"
+      }
+    },
+    {
+      "id": "evt_be2a7907-fc2",
+      "type": "lesson_created",
+      "aggregateType": "lesson",
+      "aggregateId": "lesson_846367a8",
+      "occurredAt": "2026-03-27T02:13:31.769Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "creator-content-lesson-create:lesson_846367a8",
+      "version": 1,
+      "payload": {
+        "lessonId": "lesson_846367a8",
+        "courseId": "vid_758f55d1",
+        "title": " • Main Lesson",
+        "synopsis": "",
+        "durationMin": 30,
+        "maturityRating": "13+",
+        "manifestBlobKey": "",
+        "streamAssetId": "",
+        "publishStatus": "draft",
+        "createdAt": "2026-03-27T02:13:31.768Z",
+        "updatedAt": "2026-03-27T02:13:31.768Z"
+      }
+    },
+    {
+      "id": "evt_ac3d351e-194",
+      "type": "course_deleted",
+      "aggregateType": "course",
+      "aggregateId": "vid_758f55d1",
+      "occurredAt": "2026-03-27T02:13:41.694Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "creator-content-course-delete:vid_758f55d1",
+      "version": 1,
+      "payload": {
+        "courseId": "vid_758f55d1"
+      }
     }
   ]
 }

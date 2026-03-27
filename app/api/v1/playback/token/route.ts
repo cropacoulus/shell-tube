@@ -2,7 +2,13 @@ import { jsonError, jsonOk } from "@/lib/server/http";
 import type {
   PlaybackTokenRequest,
 } from "@/lib/contracts/playback";
-import { getActivityRepository, getContentRepository } from "@/lib/repositories";
+import type { PlaybackSessionRecord } from "@/lib/contracts/activity";
+import { createDomainEvent } from "@/lib/events/event-factory";
+import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
+import { runProjectionBatch } from "@/lib/jobs/projection-runner";
+import { getPublishedLessonFromProjection } from "@/lib/projections/lesson-read-model";
+import { getActivityRepository, getContentRepository, getEventStore } from "@/lib/repositories";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { ServiceError } from "@/lib/services/http-client";
 import { buildPlaybackContext, toEntitlementRequest } from "@/lib/server/playback-context";
 import { checkEntitlement } from "@/lib/services/entitlement-client";
@@ -31,7 +37,10 @@ export async function POST(req: Request) {
   }
 
   try {
-    const lesson = await getContentRepository().getLessonRecordById(body.titleId);
+    const optionB = createOptionBConfig();
+    const lesson = optionB.projectionStoreBackend === "upstash"
+      ? await getPublishedLessonFromProjection(body.titleId)
+      : await getContentRepository().getLessonRecordById(body.titleId);
     if (!lesson || lesson.publishStatus !== "published") {
       return jsonError("NOT_FOUND", "Lesson is not available for playback", 404);
     }
@@ -62,7 +71,7 @@ export async function POST(req: Request) {
       profileId: auth.profileId,
       region: body.region || auth.region,
     });
-    await getActivityRepository().createPlaybackSessionRecord({
+    const sessionRecord: PlaybackSessionRecord = {
       id: response.playbackSessionId,
       userId: auth.userId,
       profileId: auth.profileId,
@@ -72,7 +81,45 @@ export async function POST(req: Request) {
       entitlementSource: entitlement.plan ?? entitlement.reason ?? "course_entitlement",
       playbackToken: response.token,
       expiresAt: response.expiresAt,
-    });
+      createdAt: new Date().toISOString(),
+    };
+    if (optionB.projectionStoreBackend !== "upstash") {
+      await getActivityRepository().createPlaybackSessionRecord({
+        id: sessionRecord.id,
+        userId: sessionRecord.userId,
+        profileId: sessionRecord.profileId,
+        courseId: sessionRecord.courseId,
+        lessonId: sessionRecord.lessonId,
+        manifestBlobKey: sessionRecord.manifestBlobKey,
+        entitlementSource: sessionRecord.entitlementSource,
+        playbackToken: sessionRecord.playbackToken,
+        expiresAt: sessionRecord.expiresAt,
+      });
+    }
+    await getEventStore().appendEvent(
+      createDomainEvent({
+        type: "playback_session_created",
+        aggregateType: "playback_session",
+        aggregateId: response.playbackSessionId,
+        actor: {
+          userId: auth.userId,
+          role: auth.role,
+        },
+        idempotencyKey: buildEventIdempotencyKey("playback-session-create", response.playbackSessionId),
+        payload: {
+          playbackSessionId: response.playbackSessionId,
+          lessonId: playbackContext.lessonId,
+          courseId: playbackContext.courseId,
+          userId: auth.userId,
+          profileId: auth.profileId,
+          manifestBlobKey: playbackContext.manifestBlobKey,
+          entitlementSource: entitlement.plan ?? entitlement.reason ?? "course_entitlement",
+          expiresAt: response.expiresAt,
+          createdAt: sessionRecord.createdAt,
+        },
+      }),
+    );
+    await runProjectionBatch(200);
     return jsonOk({
       ...response,
       lessonId: playbackContext.lessonId,

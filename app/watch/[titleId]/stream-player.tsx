@@ -703,7 +703,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
     <div className="space-y-3">
       <div
         ref={containerRef}
-        className="overflow-hidden rounded-xl border border-white/15 bg-[#02050d] shadow-[0_20px_70px_rgba(0,0,0,0.45)] md:rounded-2xl"
+        className="overflow-hidden rounded-[1.6rem] border border-white/12 bg-[#030812] shadow-[0_24px_80px_rgba(0,0,0,0.42)]"
         onMouseMove={revealControls}
         onTouchStart={revealControls}
       >
@@ -757,7 +757,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
             <div className="relative mb-3">
               {isSeeking && seekPreviewSec !== null ? (
                 <div
-                  className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded bg-black/85 px-2 py-0.5 text-[10px] text-white"
+                  className="pointer-events-none absolute -top-8 -translate-x-1/2 rounded-full bg-[#09111c]/92 px-2.5 py-1 text-[10px] text-white shadow-lg"
                   style={{ left: `${clamp(tooltipPercent, 0, 100)}%` }}
                 >
                   {formatClock(tooltipSec)}
@@ -794,7 +794,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
                   type="button"
                   onClick={() => triggerSkip("left")}
                   aria-label="Skip backward 10 seconds"
-                  className={`flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/20 md:min-h-0 md:min-w-0 md:px-3 md:text-sm ${
+                  className={`flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/20 bg-white/7 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/14 md:min-h-0 md:min-w-0 md:px-3 md:text-sm ${
                     skipPulseSide === "left" ? "stream-skip-pulse" : ""
                   }`}
                 >
@@ -804,7 +804,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
                   type="button"
                   onClick={togglePlay}
                   aria-label={isPlaying ? "Pause" : "Play"}
-                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full bg-white px-3 py-1.5 text-black hover:bg-white/90 md:min-h-0"
+                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#f8d7a8] to-[#f4a261] px-3 py-1.5 text-[#08111c] shadow-[0_12px_32px_rgba(244,162,97,0.34)] hover:opacity-95 md:min-h-0"
                 >
                   {isPlaying ? <IconPause /> : <IconPlay />}
                 </button>
@@ -812,7 +812,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
                   type="button"
                   onClick={() => triggerSkip("right")}
                   aria-label="Skip forward 10 seconds"
-                  className={`flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/20 md:min-h-0 md:min-w-0 md:px-3 md:text-sm ${
+                  className={`flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/20 bg-white/7 px-2.5 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-white/14 md:min-h-0 md:min-w-0 md:px-3 md:text-sm ${
                     skipPulseSide === "right" ? "stream-skip-pulse" : ""
                   }`}
                 >
@@ -829,7 +829,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
                     type="button"
                     onClick={toggleMute}
                     aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}
-                    className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20 md:min-h-0 md:min-w-0 md:text-sm"
+                    className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/20 bg-white/7 px-3 py-1.5 text-xs text-white hover:bg-white/14 md:min-h-0 md:min-w-0 md:text-sm"
                   >
                     <IconVolume muted={isMuted || volume === 0} />
                   </button>
@@ -845,7 +845,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
                   />
                 </div>
 
-                <label className="min-h-10 rounded-full border border-white/25 bg-white/10 px-2 py-1 text-xs text-white md:min-h-0 md:text-sm">
+                <label className="min-h-10 rounded-full border border-white/20 bg-white/7 px-2 py-1 text-xs text-white md:min-h-0 md:text-sm">
                   <span className="mr-1 text-white/80">Speed</span>
                   <select
                     value={playbackRate}
@@ -867,7 +867,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
                     void toggleFullscreen();
                   }}
                   aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20 md:min-h-0 md:min-w-0 md:text-sm"
+                  className="flex min-h-10 min-w-10 items-center justify-center rounded-full border border-white/20 bg-white/7 px-3 py-1.5 text-xs text-white hover:bg-white/14 md:min-h-0 md:min-w-0 md:text-sm"
                 >
                   {isFullscreen ? <IconExitFullscreen /> : <IconFullscreen />}
                 </button>
@@ -882,14 +882,14 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
           isPlaying ? "hidden sm:flex" : "flex"
         }`}
       >
-        <span className="rounded-full bg-white/10 px-2.5 py-1 md:px-3">
+        <span className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 md:px-3">
           <span className="hidden sm:inline">Status: </span>
           {status}
         </span>
-        <span className="rounded-full bg-white/10 px-3 py-1">
+        <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1">
           ABR: {abrKbps ? `${abrKbps} kbps` : "auto"}
         </span>
-        <span className="rounded-full bg-white/10 px-3 py-1">Shelby Hit Ratio: {peerHitRatio}%</span>
+        <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1">Shelby Hit Ratio: {peerHitRatio}%</span>
       </div>
       {fatalError ? <p className="text-sm text-red-300">{fatalError}</p> : null}
     </div>

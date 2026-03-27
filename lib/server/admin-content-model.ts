@@ -1,6 +1,7 @@
 import type {
   FilmCourseRecord,
   FilmLessonRecord,
+  LessonProcessingStatus,
   VideoPublishStatus,
 } from "@/lib/contracts/admin";
 
@@ -19,6 +20,7 @@ export type AdminContentItem = {
   cardImageUrl: string;
   manifestBlobKey: string;
   streamAssetId?: string;
+  processingStatus?: LessonProcessingStatus;
   publishStatus: VideoPublishStatus;
   createdAt: string;
 };
@@ -57,6 +59,7 @@ export const buildAdminContentItem = (
     cardImageUrl: course.cardImageUrl,
     manifestBlobKey: lesson.manifestBlobKey,
     streamAssetId: lesson.streamAssetId,
+    processingStatus: lesson.processingStatus,
     publishStatus: lesson.publishStatus === "draft" || course.publishStatus === "draft" ? "draft" : "published",
     createdAt: course.createdAt,
   };

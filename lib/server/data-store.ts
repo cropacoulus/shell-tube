@@ -18,6 +18,7 @@ import type {
 import type { CreatorPayoutLedgerRecord } from "@/lib/contracts/revenue";
 import type { CreatorApplicationRecord, CreatorApplicationStatus } from "@/lib/contracts/creator-application";
 import type { UserProfile, UserRole } from "@/lib/contracts/profile";
+import type { DomainEvent } from "@/lib/events/contracts";
 import {
   buildMainLessonInput,
   buildVideoCompatibilityRecord,
@@ -37,6 +38,7 @@ type DataState = {
   qoeEvents: QoeEventRecord[];
   creatorPayoutLedger: CreatorPayoutLedgerRecord[];
   creatorApplications: CreatorApplicationRecord[];
+  domainEvents: DomainEvent[];
 };
 
 const DATA_FILE = `${process.cwd()}/data/app-data.json`;
@@ -53,6 +55,7 @@ const initialState: DataState = {
   qoeEvents: [],
   creatorPayoutLedger: [],
   creatorApplications: [],
+  domainEvents: [],
 };
 
 async function ensureDataFile() {
@@ -98,6 +101,7 @@ async function loadState(): Promise<DataState> {
       qoeEvents: parsed.qoeEvents ?? [],
       creatorPayoutLedger: parsed.creatorPayoutLedger ?? [],
       creatorApplications: parsed.creatorApplications ?? [],
+      domainEvents: parsed.domainEvents ?? [],
     };
   } catch {
     return initialState;
@@ -618,4 +622,16 @@ export async function updateCreatorApplicationStatus(
   state.creatorApplications[index] = updated;
   await saveState(state);
   return updated;
+}
+
+export async function listDomainEvents(): Promise<DomainEvent[]> {
+  const state = await loadState();
+  return [...state.domainEvents].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
+}
+
+export async function appendDomainEvents(events: DomainEvent[]): Promise<void> {
+  if (events.length === 0) return;
+  const state = await loadState();
+  state.domainEvents.push(...events);
+  await saveState(state);
 }

@@ -1,6 +1,17 @@
 import { getAuthContextFromRequest } from "@/lib/server/auth";
+import type { FilmLessonRecord } from "@/lib/contracts/admin";
+import { createDomainEvent } from "@/lib/events/event-factory";
+import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
+import { runProjectionBatch } from "@/lib/jobs/projection-runner";
+import {
+  getCourseRecordFromProjection,
+  getLessonRecordFromProjection,
+  listLessonRecordsByCourseFromProjection,
+  listLessonRecordsFromProjection,
+} from "@/lib/projections/admin-record-read-model";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { jsonError, jsonOk } from "@/lib/server/http";
-import { getContentRepository } from "@/lib/repositories";
+import { getContentRepository, getEventStore } from "@/lib/repositories";
 
 type LessonCreateRequest = {
   courseId: string;
@@ -47,34 +58,84 @@ function ensureAdmin(req: Request) {
   const auth = getAuthContextFromRequest(req);
   if (!auth) return { ok: false as const, response: jsonError("UNAUTHORIZED", "Session is required", 401) };
   if (auth.role !== "admin") return { ok: false as const, response: jsonError("FORBIDDEN", "Admin access required", 403) };
-  return { ok: true as const };
+  return { ok: true as const, auth };
 }
 
 export async function GET(req: Request) {
   const gate = ensureAdmin(req);
   if (!gate.ok) return gate.response;
+  const optionB = createOptionBConfig();
   const repository = getContentRepository();
   const url = new URL(req.url);
   const courseId = url.searchParams.get("courseId");
   if (courseId) {
-    return jsonOk(await repository.listLessonRecordsByCourse(courseId));
+    return jsonOk(
+      optionB.projectionStoreBackend === "upstash"
+        ? await listLessonRecordsByCourseFromProjection(courseId)
+        : await repository.listLessonRecordsByCourse(courseId),
+    );
   }
-  return jsonOk(await repository.listLessonRecords());
+  return jsonOk(
+    optionB.projectionStoreBackend === "upstash"
+      ? await listLessonRecordsFromProjection()
+      : await repository.listLessonRecords(),
+  );
 }
 
 export async function POST(req: Request) {
   const gate = ensureAdmin(req);
   if (!gate.ok) return gate.response;
   const repository = getContentRepository();
+  const optionB = createOptionBConfig();
 
   const body = (await req.json().catch(() => null)) as unknown;
   if (!isValid(body)) return jsonError("INVALID_REQUEST", "Invalid lesson payload", 422);
-  const course = await repository.getCourseRecordById(body.courseId);
+  const course = optionB.projectionStoreBackend === "upstash"
+    ? await getCourseRecordFromProjection(body.courseId)
+    : await repository.getCourseRecordById(body.courseId);
   if (!course) return jsonError("INVALID_REQUEST", "courseId does not exist", 422);
   if (!body.manifestBlobKey.trim()) {
     return jsonError("INVALID_REQUEST", "Stream blob key is required", 422);
   }
-  return jsonOk(await repository.addLessonRecord(body), 201);
+  const created: FilmLessonRecord = optionB.projectionStoreBackend === "upstash"
+    ? {
+        id: `lesson_${crypto.randomUUID().slice(0, 12)}`,
+        courseId: body.courseId,
+        title: body.title,
+        synopsis: body.synopsis,
+        durationMin: body.durationMin,
+        maturityRating: body.maturityRating,
+        manifestBlobKey: body.manifestBlobKey,
+        streamAssetId: body.streamAssetId,
+        publishStatus: body.publishStatus,
+        createdAt: new Date().toISOString(),
+      }
+    : await repository.addLessonRecord(body);
+  await getEventStore().appendEvent(
+    createDomainEvent({
+      type: "lesson_created",
+      aggregateType: "lesson",
+      aggregateId: created.id,
+      actor: { userId: gate.auth.userId, role: gate.auth.role },
+      idempotencyKey: buildEventIdempotencyKey("admin-lesson-create", created.id),
+      payload: {
+        lessonId: created.id,
+        courseId: created.courseId,
+        title: created.title,
+        synopsis: created.synopsis,
+        durationMin: created.durationMin,
+        maturityRating: created.maturityRating,
+        manifestBlobKey: created.manifestBlobKey,
+        streamAssetId: created.streamAssetId,
+        processingStatus: created.processingStatus,
+        publishStatus: created.publishStatus,
+        createdAt: created.createdAt,
+        updatedAt: created.createdAt,
+      },
+    }),
+  );
+  await runProjectionBatch(200);
+  return jsonOk(created, 201);
 }
 
 export async function PATCH(req: Request) {
@@ -101,8 +162,43 @@ export async function PATCH(req: Request) {
   if (typeof patch.manifestBlobKey === "string" && !patch.manifestBlobKey.trim()) {
     return jsonError("INVALID_REQUEST", "Stream blob key cannot be empty", 422);
   }
-  const updated = await getContentRepository().updateLessonRecord(body.id, patch);
+  const optionB = createOptionBConfig();
+  const updated: FilmLessonRecord | null = optionB.projectionStoreBackend === "upstash"
+    ? await (async () => {
+        const existing = await getLessonRecordFromProjection(body.id);
+        if (!existing) return null;
+        return {
+          ...existing,
+          ...patch,
+        };
+      })()
+    : await getContentRepository().updateLessonRecord(body.id, patch);
   if (!updated) return jsonError("NOT_FOUND", "Lesson not found", 404);
+  const updatedAt = new Date().toISOString();
+  await getEventStore().appendEvent(
+    createDomainEvent({
+      type: "lesson_updated",
+      aggregateType: "lesson",
+      aggregateId: updated.id,
+      actor: { userId: gate.auth.userId, role: gate.auth.role },
+      idempotencyKey: buildEventIdempotencyKey("admin-lesson-update", updated.id, updatedAt),
+      payload: {
+        lessonId: updated.id,
+        courseId: updated.courseId,
+        title: updated.title,
+        synopsis: updated.synopsis,
+        durationMin: updated.durationMin,
+        maturityRating: updated.maturityRating,
+        manifestBlobKey: updated.manifestBlobKey,
+        streamAssetId: updated.streamAssetId,
+        processingStatus: updated.processingStatus,
+        publishStatus: updated.publishStatus,
+        createdAt: updated.createdAt,
+        updatedAt,
+      },
+    }),
+  );
+  await runProjectionBatch(200);
   return jsonOk(updated);
 }
 
@@ -113,7 +209,21 @@ export async function DELETE(req: Request) {
   if (!body || typeof body.id !== "string") {
     return jsonError("INVALID_REQUEST", "Lesson id is required", 422);
   }
-  const deleted = await getContentRepository().deleteLessonRecord(body.id);
-  if (!deleted) return jsonError("NOT_FOUND", "Lesson not found", 404);
+  const optionB = createOptionBConfig();
+  if (optionB.projectionStoreBackend !== "upstash") {
+    const deleted = await getContentRepository().deleteLessonRecord(body.id);
+    if (!deleted) return jsonError("NOT_FOUND", "Lesson not found", 404);
+  }
+  await getEventStore().appendEvent(
+    createDomainEvent({
+      type: "lesson_deleted",
+      aggregateType: "lesson",
+      aggregateId: body.id,
+      actor: { userId: gate.auth.userId, role: gate.auth.role },
+      idempotencyKey: buildEventIdempotencyKey("admin-lesson-delete", body.id),
+      payload: { lessonId: body.id },
+    }),
+  );
+  await runProjectionBatch(200);
   return jsonOk({ deleted: true });
 }

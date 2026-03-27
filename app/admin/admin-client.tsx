@@ -512,62 +512,66 @@ export default function AdminClient() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <section className="rounded-2xl border border-white/10 bg-gradient-to-r from-[#12172a] to-[#0b101d] p-5 md:p-6">
+      <section className="app-panel rounded-[2rem] p-6 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold md:text-3xl">Admin Studio</h1>
-            <p className="mt-1 text-sm text-white/70">Manage categories, ingest videos to Shelby, and publish to catalog.</p>
+            <p className="app-kicker">Admin studio</p>
+            <h1 className="mt-3 text-2xl font-semibold md:text-4xl">Keep the platform catalog and creator intake under control.</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-white/68">Manage categories, operate the catalog, and keep publishing state clean without exposing this control layer to creators.</p>
           </div>
           <button
             onClick={() => void loadData()}
-            className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20"
+            className="app-secondary-button px-4 py-2 text-sm"
           >
-            Refresh Data
+            Refresh data
           </button>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3">
-            <p className="text-xs text-white/60">Categories</p>
+          <div className="metric-card">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/45">Categories</p>
             <p className="mt-1 text-2xl font-semibold">{stats.totalCategories}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3">
-            <p className="text-xs text-white/60">Courses</p>
+          <div className="metric-card">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/45">Courses</p>
             <p className="mt-1 text-2xl font-semibold">{stats.totalVideos}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3">
-            <p className="text-xs text-white/60">Stream Ready</p>
+          <div className="metric-card">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/45">Stream ready</p>
             <p className="mt-1 text-2xl font-semibold">{stats.withStreamKey}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3">
-            <p className="text-xs text-white/60">Released This Year</p>
+          <div className="metric-card">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/45">Released this year</p>
             <p className="mt-1 text-2xl font-semibold">{stats.releasedThisYear}</p>
           </div>
         </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 rounded-2xl border border-white/10 bg-[#10141f] p-5 lg:col-span-1">
-          <h2 className="text-lg font-semibold">Category Manager</h2>
+        <div className="app-panel space-y-4 rounded-[2rem] p-6 lg:col-span-1">
+          <div>
+            <p className="app-kicker">Taxonomy</p>
+            <h2 className="mt-2 text-2xl font-semibold">Category manager</h2>
+          </div>
           <input
             value={catName}
             onChange={(event) => setCatName(event.target.value)}
             placeholder="Category name"
-            className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2"
+            className="form-shell"
           />
           <textarea
             value={catDesc}
             onChange={(event) => setCatDesc(event.target.value)}
             placeholder="Description"
-            className="h-24 w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2"
+            className="form-shell h-24"
           />
-          <button onClick={createCategory} className="w-full rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black">
-            Add Category
+          <button onClick={createCategory} className="app-primary-button w-full px-4 py-3 text-sm">
+            Add category
           </button>
           <div className="space-y-2 text-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/60">Existing Categories</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Existing categories</p>
             {categories.length === 0 ? <p className="text-white/60">No categories yet.</p> : null}
             {categories.map((cat) => (
-              <div key={cat.id} className="rounded-lg border border-white/10 px-3 py-2">
+              <div key={cat.id} className="rounded-[1.25rem] border border-white/10 bg-white/4 px-3 py-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-medium">{cat.name}</p>
@@ -577,14 +581,14 @@ export default function AdminClient() {
                     <button
                       type="button"
                       onClick={() => setEditingCategory(cat)}
-                      className="rounded border border-white/20 bg-white/10 px-2 py-1 text-[10px] font-semibold hover:bg-white/20"
+                      className="app-secondary-button px-3 py-1.5 text-[10px]"
                     >
                       Edit
                     </button>
                     <button
                       type="button"
                       onClick={() => setDeleteTarget({ type: "category", id: cat.id, label: cat.name })}
-                      className="rounded border border-red-300/40 bg-red-500/10 px-2 py-1 text-[10px] font-semibold text-red-200 hover:bg-red-500/20"
+                      className="app-danger-button px-3 py-1.5 text-[10px]"
                     >
                       Delete
                     </button>
@@ -595,45 +599,48 @@ export default function AdminClient() {
           </div>
         </div>
 
-        <div className="space-y-4 rounded-2xl border border-white/10 bg-[#10141f] p-5 lg:col-span-2">
-          <h2 className="text-lg font-semibold">Course Publisher</h2>
+        <div className="app-panel space-y-4 rounded-[2rem] p-6 lg:col-span-2">
+          <div>
+            <p className="app-kicker">Catalog operations</p>
+            <h2 className="mt-2 text-2xl font-semibold">Course publisher</h2>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               placeholder="Title"
               value={videoForm.title}
               onChange={(e) => setVideoForm({ ...videoForm, title: e.target.value })}
-              className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 sm:col-span-2"
+              className="form-shell w-full sm:col-span-2"
             />
             <textarea
               placeholder="Synopsis"
               value={videoForm.synopsis}
               onChange={(e) => setVideoForm({ ...videoForm, synopsis: e.target.value })}
-              className="h-24 w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 sm:col-span-2"
+              className="form-shell h-24 w-full sm:col-span-2"
             />
             <input
               type="number"
               placeholder="Year"
               value={videoForm.year}
               onChange={(e) => setVideoForm({ ...videoForm, year: Number(e.target.value) })}
-              className="rounded-lg border border-white/20 bg-black/30 px-3 py-2"
+              className="form-shell"
             />
             <input
               type="number"
               placeholder="Duration min"
               value={videoForm.durationMin}
               onChange={(e) => setVideoForm({ ...videoForm, durationMin: Number(e.target.value) })}
-              className="rounded-lg border border-white/20 bg-black/30 px-3 py-2"
+              className="form-shell"
             />
             <input
               placeholder="Maturity rating (e.g. 16+)"
               value={videoForm.maturityRating}
               onChange={(e) => setVideoForm({ ...videoForm, maturityRating: e.target.value })}
-              className="rounded-lg border border-white/20 bg-black/30 px-3 py-2"
+              className="form-shell"
             />
             <select
               value={videoForm.categoryId}
               onChange={(e) => setVideoForm({ ...videoForm, categoryId: e.target.value })}
-              className="rounded-lg border border-white/20 bg-black/30 px-3 py-2"
+              className="form-shell"
             >
               <option value="">Select Category</option>
               {categories.map((cat) => (
@@ -644,18 +651,18 @@ export default function AdminClient() {
               placeholder="Hero image URL"
               value={videoForm.heroImageUrl}
               onChange={(e) => setVideoForm({ ...videoForm, heroImageUrl: e.target.value })}
-              className="rounded-lg border border-white/20 bg-black/30 px-3 py-2"
+              className="form-shell"
             />
             <input
               placeholder="Card image URL"
               value={videoForm.cardImageUrl}
               onChange={(e) => setVideoForm({ ...videoForm, cardImageUrl: e.target.value })}
-              className="rounded-lg border border-white/20 bg-black/30 px-3 py-2"
+              className="form-shell"
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/60">Hero Preview</p>
+            <div className="app-panel-soft rounded-[1.35rem] p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Hero preview</p>
               {videoForm.heroImageUrl.trim() ? (
                 <img
                   src={videoForm.heroImageUrl}
@@ -668,8 +675,8 @@ export default function AdminClient() {
                 </div>
               )}
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/60">Card Preview</p>
+            <div className="app-panel-soft rounded-[1.35rem] p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Card preview</p>
               {videoForm.cardImageUrl.trim() ? (
                 <img
                   src={videoForm.cardImageUrl}

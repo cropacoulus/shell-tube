@@ -149,6 +149,21 @@ CREATE TABLE creator_applications (
   reviewed_at DATETIME NULL
 );
 
+CREATE TABLE domain_events (
+  id VARCHAR(64) PRIMARY KEY,
+  type VARCHAR(64) NOT NULL,
+  aggregate_type VARCHAR(64) NOT NULL,
+  aggregate_id VARCHAR(64) NOT NULL,
+  occurred_at DATETIME NOT NULL,
+  actor_user_id VARCHAR(128) NULL,
+  actor_role VARCHAR(32) NULL,
+  correlation_id VARCHAR(64) NULL,
+  causation_id VARCHAR(64) NULL,
+  idempotency_key VARCHAR(128) NULL,
+  payload_json JSON NOT NULL,
+  version INT NOT NULL
+);
+
 CREATE INDEX idx_profiles_wallet_address ON profiles(wallet_address);
 CREATE INDEX idx_courses_category_id ON courses(category_id);
 CREATE INDEX idx_courses_publish_status ON courses(publish_status);
@@ -170,3 +185,6 @@ CREATE INDEX idx_creator_payout_ledger_course_id ON creator_payout_ledger(course
 CREATE INDEX idx_creator_payout_ledger_period_key ON creator_payout_ledger(period_key);
 CREATE INDEX idx_creator_applications_user_id ON creator_applications(user_id);
 CREATE INDEX idx_creator_applications_status ON creator_applications(status);
+CREATE INDEX idx_domain_events_aggregate ON domain_events(aggregate_type, aggregate_id, occurred_at);
+CREATE INDEX idx_domain_events_type ON domain_events(type, occurred_at);
+CREATE UNIQUE INDEX idx_domain_events_idempotency_key ON domain_events(idempotency_key);

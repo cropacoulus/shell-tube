@@ -3,6 +3,8 @@ import { jsonError, jsonOk } from "@/lib/server/http";
 import { listLessonsByCourse } from "@/lib/server/course-flow";
 import { ServiceError } from "@/lib/services/http-client";
 import { checkEntitlement } from "@/lib/services/entitlement-client";
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
+import { listLessonsByCourseFromProjection } from "@/lib/projections/catalog-read-model";
 
 export async function GET(req: Request) {
   const auth = getAuthContextFromRequest(req);
@@ -12,7 +14,10 @@ export async function GET(req: Request) {
   const courseId = url.searchParams.get("courseId");
   if (!courseId) return jsonError("INVALID_REQUEST", "courseId query parameter is required", 422);
   try {
-    const lessons = await listLessonsByCourse(courseId);
+    const optionB = createOptionBConfig();
+    const lessons = optionB.projectionStoreBackend === "upstash"
+      ? await listLessonsByCourseFromProjection(courseId)
+      : await listLessonsByCourse(courseId);
     const lessonsWithEntitlement = await Promise.all(
       lessons.map(async (lesson) => {
         const entitlement = await checkEntitlement({

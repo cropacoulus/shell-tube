@@ -24,6 +24,9 @@ test("repository registry returns defaults and can be overridden", async () => {
     creatorApplicationRepository: {
       listCreatorApplications: async () => [{ id: "app_1" }],
     },
+    eventStore: {
+      listEvents: async () => [{ id: "evt_1" }],
+    },
   });
 
   assert.equal(typeof registry.getContentRepository().listCategories, "function");
@@ -32,6 +35,7 @@ test("repository registry returns defaults and can be overridden", async () => {
   assert.equal(typeof registry.getActivityRepository().listLessonProgressByUser, "function");
   assert.equal(typeof registry.getRevenueRepository().listCreatorPayoutLedger, "function");
   assert.equal(typeof registry.getCreatorApplicationRepository().listCreatorApplications, "function");
+  assert.equal(typeof registry.getEventStore().listEvents, "function");
 
   const categories = await registry.getContentRepository().listCategories();
   assert.ok(Array.isArray(categories));
@@ -43,6 +47,8 @@ test("repository registry returns defaults and can be overridden", async () => {
   assert.ok(Array.isArray(ledger));
   const applications = await registry.getCreatorApplicationRepository().listCreatorApplications();
   assert.ok(Array.isArray(applications));
+  const events = await registry.getEventStore().listEvents();
+  assert.ok(Array.isArray(events));
 
   registry.setRepositories({
     activityRepository: {
@@ -64,6 +70,9 @@ test("repository registry returns defaults and can be overridden", async () => {
     creatorApplicationRepository: {
       listCreatorApplications: async () => [{ id: "app_2" }],
     },
+    eventStore: {
+      listEvents: async () => [{ id: "evt_2" }],
+    },
   });
 
   const updatedCategories = await registry.getContentRepository().listCategories();
@@ -76,4 +85,6 @@ test("repository registry returns defaults and can be overridden", async () => {
   assert.equal(updatedLedger[0]?.id, "ledger_2");
   const updatedApplications = await registry.getCreatorApplicationRepository().listCreatorApplications();
   assert.equal(updatedApplications[0]?.id, "app_2");
+  const updatedEvents = await registry.getEventStore().listEvents();
+  assert.equal(updatedEvents[0]?.id, "evt_2");
 });

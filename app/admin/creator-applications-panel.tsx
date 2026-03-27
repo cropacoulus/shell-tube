@@ -74,35 +74,36 @@ export default function CreatorApplicationsPanel() {
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-white/10 bg-[#10141f] p-5">
+    <section className="app-panel mt-6 rounded-[2rem] p-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Pending Creator Applications</h2>
-          <p className="mt-1 text-sm text-white/60">Each application can only be reviewed once. Approved creators move to the active creator list below.</p>
+          <p className="app-kicker">Creator review queue</p>
+          <h2 className="mt-2 text-2xl font-semibold">Pending creator applications</h2>
+          <p className="mt-2 text-sm text-white/60">Each application can only be reviewed once. Approved creators move to the active creator list below.</p>
         </div>
       </div>
       <div className="mt-4 space-y-3">
         {items.length > 0 ? items.map((item) => (
-          <div key={item.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <div key={item.id} className="rounded-[1.4rem] border border-white/10 bg-white/4 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-medium">{item.displayName}</p>
                 <p className="mt-1 text-xs text-white/55">{item.userId}</p>
-                <p className="mt-3 text-sm text-white/75">{item.pitch}</p>
+                <p className="mt-3 text-sm leading-7 text-white/75">{item.pitch}</p>
                 <p className="mt-2 text-xs text-white/45">Submitted {new Date(item.createdAt).toLocaleString()}</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => void reviewApplication(item.id, "approved")}
-                  className="rounded-md border border-emerald-300/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-100"
+                  className="app-success-button px-4 py-2 text-xs"
                 >
                   Approve
                 </button>
                 <button
                   type="button"
                   onClick={() => void reviewApplication(item.id, "rejected")}
-                  className="rounded-md border border-rose-300/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100"
+                  className="app-danger-button px-4 py-2 text-xs"
                 >
                   Reject
                 </button>
@@ -115,12 +116,13 @@ export default function CreatorApplicationsPanel() {
       </div>
       <div className="mt-6 border-t border-white/10 pt-5">
         <div>
-          <h3 className="text-lg font-semibold">Active Creators</h3>
+          <p className="app-kicker">Approved list</p>
+          <h3 className="mt-2 text-2xl font-semibold">Active creators</h3>
           <p className="mt-1 text-sm text-white/60">Wallets that already have creator access.</p>
         </div>
         <div className="mt-4 space-y-2">
           {creators.length > 0 ? creators.map((creator) => (
-            <div key={creator.userId} className="rounded-xl border border-white/10 bg-black/20 p-4">
+            <div key={creator.userId} className="rounded-[1.4rem] border border-white/10 bg-white/4 p-4">
               <p className="font-medium">{creator.displayName}</p>
               <p className="mt-1 text-xs text-white/55">{creator.userId}</p>
               <p className="mt-2 text-xs text-white/45">Updated {new Date(creator.updatedAt).toLocaleString()}</p>

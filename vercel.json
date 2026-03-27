@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/internal/projections/run?limit=200",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/internal/media/process/run?limit=20",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

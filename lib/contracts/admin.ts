@@ -6,6 +6,7 @@ export type FilmCategory = {
 };
 
 export type VideoPublishStatus = "draft" | "published";
+export type LessonProcessingStatus = "idle" | "source_uploaded" | "packaging_requested" | "manifest_ready";
 
 export type MediaAssetType = "manifest" | "source_video";
 
@@ -43,6 +44,7 @@ export type FilmLessonRecord = {
   maturityRating: string;
   manifestBlobKey: string;
   streamAssetId?: string;
+  processingStatus?: LessonProcessingStatus;
   publishStatus: VideoPublishStatus;
   createdAt: string;
 };

@@ -1,4 +1,11 @@
+import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { getContentRepository } from "@/lib/repositories";
+import {
+  getCourseSummaryFromProjection,
+  getLessonSummaryFromProjection,
+  listCourseSummariesFromProjection,
+  listLessonsByCourseFromProjection,
+} from "@/lib/projections/catalog-read-model";
 import type { CourseSummary, LessonSummary } from "@/lib/server/learning-read-model";
 
 export type { CourseSummary, LessonSummary } from "@/lib/server/learning-read-model";
@@ -44,6 +51,10 @@ function buildLessonSummary(lesson: {
 }
 
 export async function listCourseSummaries(): Promise<CourseSummary[]> {
+  if (createOptionBConfig().projectionStoreBackend === "upstash") {
+    return listCourseSummariesFromProjection();
+  }
+
   const repository = getContentRepository();
   const [courses, categories] = await Promise.all([
     repository.listCourseRecords(),
@@ -56,6 +67,10 @@ export async function listCourseSummaries(): Promise<CourseSummary[]> {
 }
 
 export async function getCourseById(id: string): Promise<CourseSummary | null> {
+  if (createOptionBConfig().projectionStoreBackend === "upstash") {
+    return getCourseSummaryFromProjection(id);
+  }
+
   const repository = getContentRepository();
   const [course, categories] = await Promise.all([
     repository.getCourseRecordById(id),
@@ -67,6 +82,10 @@ export async function getCourseById(id: string): Promise<CourseSummary | null> {
 }
 
 export async function listLessonsByCourse(courseId: string): Promise<LessonSummary[]> {
+  if (createOptionBConfig().projectionStoreBackend === "upstash") {
+    return listLessonsByCourseFromProjection(courseId);
+  }
+
   const lessons = await getContentRepository().listLessonRecordsByCourse(courseId);
   return lessons
     .filter((lesson) => lesson.publishStatus === "published")
@@ -74,6 +93,10 @@ export async function listLessonsByCourse(courseId: string): Promise<LessonSumma
 }
 
 export async function getLessonById(lessonId: string): Promise<LessonSummary | null> {
+  if (createOptionBConfig().projectionStoreBackend === "upstash") {
+    return getLessonSummaryFromProjection(lessonId);
+  }
+
   const lesson = await getContentRepository().getLessonRecordById(lessonId);
   if (!lesson || lesson.publishStatus !== "published") return null;
   return buildLessonSummary(lesson);

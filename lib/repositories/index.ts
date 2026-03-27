@@ -1,4 +1,6 @@
 import type { ActivityRepository } from "@/lib/repositories/activity-repository";
+import type { EventStore } from "@/lib/event-store/event-store";
+import { createDefaultEventStore } from "@/lib/event-store";
 import { jsonActivityRepository } from "@/lib/repositories/json/json-activity-repository";
 import type { ContentRepository } from "@/lib/repositories/content-repository";
 import type { ProfileRepository } from "@/lib/repositories/profile-repository";
@@ -22,6 +24,7 @@ function createDefaultRepositories(): {
   profileRepository: ProfileRepository;
   revenueRepository: RevenueRepository;
   creatorApplicationRepository: CreatorApplicationRepository;
+  eventStore: EventStore;
 } {
   const config = createPersistenceConfig();
   if (config.driver === "mysql") {
@@ -31,6 +34,7 @@ function createDefaultRepositories(): {
       profileRepository: mysqlProfileRepository,
       revenueRepository: mysqlRevenueRepository,
       creatorApplicationRepository: mysqlCreatorApplicationRepository,
+      eventStore: createDefaultEventStore(),
     };
   }
   return {
@@ -39,10 +43,11 @@ function createDefaultRepositories(): {
     profileRepository: jsonProfileRepository,
     revenueRepository: jsonRevenueRepository,
     creatorApplicationRepository: jsonCreatorApplicationRepository,
+    eventStore: createDefaultEventStore(),
   };
 }
 
-const registry = createRepositoryRegistry<ContentRepository, ProfileRepository, ActivityRepository, RevenueRepository, CreatorApplicationRepository>(
+const registry = createRepositoryRegistry<ContentRepository, ProfileRepository, ActivityRepository, RevenueRepository, CreatorApplicationRepository, EventStore>(
   createDefaultRepositories(),
 );
 
@@ -51,4 +56,5 @@ export const getContentRepository = registry.getContentRepository;
 export const getProfileRepository = registry.getProfileRepository;
 export const getRevenueRepository = registry.getRevenueRepository;
 export const getCreatorApplicationRepository = registry.getCreatorApplicationRepository;
+export const getEventStore = registry.getEventStore;
 export const setRepositories = registry.setRepositories;

@@ -9,7 +9,9 @@ import {
   generateCommitments,
   ShelbyBlobClient,
 } from "@shelby-protocol/sdk/browser";
+
 import type { AdminContentItem } from "@/lib/server/admin-content-model";
+import { validateCreatorContentCore } from "@/lib/creator/content-validation";
 import { buildTitleBlobName } from "@/lib/storage/blob-path";
 import { resolveAppNetwork } from "@/lib/wallet/network";
 
@@ -32,6 +34,8 @@ type CreatorForm = {
   publishStatus: "draft" | "published";
 };
 
+type ReleaseStage = "metadata" | "source-uploaded" | "processing" | "ready" | "live";
+
 const emptyForm: CreatorForm = {
   title: "",
   synopsis: "",
@@ -46,6 +50,65 @@ const emptyForm: CreatorForm = {
   publishStatus: "draft",
 };
 
+function getReleaseStage(
+  item: Pick<AdminContentItem, "streamAssetId" | "manifestBlobKey" | "publishStatus" | "processingStatus">,
+): ReleaseStage {
+  if (item.publishStatus === "published") return "live";
+  if (item.manifestBlobKey) return "ready";
+  if (item.processingStatus === "packaging_requested") return "processing";
+  if (item.streamAssetId) return "source-uploaded";
+  return "metadata";
+}
+
+function getReadinessLabel(
+  item: Pick<AdminContentItem, "streamAssetId" | "manifestBlobKey" | "publishStatus" | "processingStatus">,
+) {
+  const stage = getReleaseStage(item);
+  if (stage === "live") return "Live";
+  if (stage === "ready") return "Ready to publish";
+  if (stage === "source-uploaded") return "Source uploaded";
+  if (stage === "processing") return "Processing";
+  return "Metadata only";
+}
+
+function getReleaseNarrative(
+  item: Pick<AdminContentItem, "streamAssetId" | "manifestBlobKey" | "publishStatus" | "processingStatus">,
+) {
+  const stage = getReleaseStage(item);
+  switch (stage) {
+    case "live":
+      return {
+        title: "Public and streamable",
+        body: "The lesson is already live in the catalog. Move it back to draft if you need to revise assets or metadata.",
+        nextStep: "Monitor performance or return the release to draft.",
+      };
+    case "ready":
+      return {
+        title: "Playback is ready",
+        body: "A manifest is attached, so the player has a watch-ready artifact. This draft can go public as soon as you are happy with the metadata.",
+        nextStep: "Publish when you want the course to appear in the catalog.",
+      };
+    case "processing":
+      return {
+        title: "Packaging has been requested",
+        body: "Source media is attached and this release has been moved into packaging. The lesson cannot go public until a watch-ready HLS manifest is available.",
+        nextStep: "Wait for packaging output or attach the `.m3u8` manifest manually when it is ready.",
+      };
+    case "source-uploaded":
+      return {
+        title: "Source uploaded",
+        body: "The source asset is attached to the draft, but packaging has not been requested yet. The lesson still needs a playback manifest.",
+        nextStep: "Request packaging or attach the `.m3u8` manifest manually.",
+      };
+    default:
+      return {
+        title: "Metadata shell only",
+        body: "The draft exists, but no media is attached yet. This is the right time to finish the metadata and upload source or manifest files.",
+        nextStep: "Upload source media or attach a ready manifest.",
+      };
+  }
+}
+
 export default function CreatorUploadClient() {
   const { account, connected, signAndSubmitTransaction } = useWallet();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -56,6 +119,7 @@ export default function CreatorUploadClient() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadStage, setUploadStage] = useState<string | null>(null);
+
   const draftItems = items.filter((item) => item.publishStatus === "draft");
   const publishedItems = items.filter((item) => item.publishStatus === "published");
   const currentAddress =
@@ -70,6 +134,7 @@ export default function CreatorUploadClient() {
       fetch("/api/v1/admin/categories"),
       fetch("/api/v1/creator/content"),
     ]);
+
     if (categoryRes.ok) {
       const body = (await categoryRes.json()) as { data: Category[] };
       setCategories(body.data);
@@ -79,6 +144,7 @@ export default function CreatorUploadClient() {
           : current,
       );
     }
+
     if (contentRes.ok) {
       const body = (await contentRes.json()) as { data: AdminContentItem[] };
       setItems(body.data);
@@ -89,7 +155,20 @@ export default function CreatorUploadClient() {
     void loadData();
   }, [loadData]);
 
-  function applyItemToEditor(item: AdminContentItem) {
+  useEffect(() => {
+    if (!editingItem) return;
+    const fresh = items.find((item) => item.courseId === editingItem.courseId);
+    if (!fresh) return;
+    if (
+      fresh.manifestBlobKey !== editingItem.manifestBlobKey ||
+      fresh.streamAssetId !== editingItem.streamAssetId ||
+      fresh.publishStatus !== editingItem.publishStatus
+    ) {
+      applyItemToEditor(fresh);
+    }
+  }, [editingItem, items]);
+
+  const applyItemToEditor = (item: AdminContentItem) => {
     setEditingItem(item);
     setForm({
       title: item.title,
@@ -104,7 +183,7 @@ export default function CreatorUploadClient() {
       streamAssetId: item.streamAssetId || "",
       publishStatus: item.publishStatus,
     });
-  }
+  };
 
   async function uploadAsset(input: {
     file: File;
@@ -192,12 +271,17 @@ export default function CreatorUploadClient() {
       const body = (await response.json()) as {
         data: { blobKey: string; asset: { id: string } };
       };
+
       setForm((current) => ({
         ...current,
         ...(input.folder === "manifests" ? { manifestBlobKey: body.data.blobKey } : {}),
         streamAssetId: body.data.asset.id || current.streamAssetId,
       }));
-      setStatus(`${input.successLabel} uploaded.`);
+      setStatus(
+        input.folder === "manifests"
+          ? "Manifest attached. This draft is now ready to publish."
+          : "Source video uploaded. Finish packaging and attach an HLS manifest to unlock publish.",
+      );
       setUploadStage("Upload completed.");
       await loadData();
     } catch (uploadError) {
@@ -233,10 +317,18 @@ export default function CreatorUploadClient() {
   async function createDraft() {
     setError(null);
     setStatus(null);
+    const validationError = validateCreatorContentCore(form);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     const response = await fetch("/api/v1/creator/content", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        publishStatus: "draft",
+      }),
     });
     const body = (await response.json().catch(() => null)) as { data?: AdminContentItem; error?: { message?: string } } | null;
     if (!response.ok) {
@@ -248,7 +340,7 @@ export default function CreatorUploadClient() {
       return;
     }
     applyItemToEditor(body.data);
-    setStatus("Creator draft created. Upload source video or manifest to continue.");
+    setStatus("Draft created. You can now attach source media or a manifest.");
     await loadData();
   }
 
@@ -263,6 +355,7 @@ export default function CreatorUploadClient() {
         courseId: editingItem.courseId,
         lessonId: editingItem.lessonId,
         ...form,
+        publishStatus: editingItem.publishStatus,
       }),
     });
     const body = (await response.json().catch(() => null)) as { data?: AdminContentItem; error?: { message?: string } } | null;
@@ -275,7 +368,7 @@ export default function CreatorUploadClient() {
       return;
     }
     applyItemToEditor(body.data);
-    setStatus("Creator draft updated.");
+    setStatus("Draft updated.");
     await loadData();
   }
 
@@ -283,6 +376,10 @@ export default function CreatorUploadClient() {
     setError(null);
     setStatus(null);
     const nextStatus = item.publishStatus === "published" ? "draft" : "published";
+    if (nextStatus === "published" && !item.manifestBlobKey) {
+      setError("Attach a watch-ready HLS manifest before publishing this course.");
+      return;
+    }
     const response = await fetch("/api/v1/creator/content", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -297,7 +394,28 @@ export default function CreatorUploadClient() {
       setError(body?.error?.message || "Failed to update publish status.");
       return;
     }
-    setStatus(nextStatus === "published" ? "Creator content published." : "Creator content moved to draft.");
+    setStatus(nextStatus === "published" ? "Course is now public." : "Course moved back to draft.");
+    await loadData();
+  }
+
+  async function requestPackaging(item: AdminContentItem) {
+    setError(null);
+    setStatus("Queueing packaging...");
+    const response = await fetch("/api/v1/creator/content/process", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        courseId: item.courseId,
+        lessonId: item.lessonId,
+      }),
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+      setError(body?.error?.message || "Failed to request packaging.");
+      setStatus(null);
+      return;
+    }
+    setStatus("Packaging requested. Attach the manifest when the packaging output is ready.");
     await loadData();
   }
 
@@ -319,7 +437,7 @@ export default function CreatorUploadClient() {
     if (editingItem?.courseId === item.courseId) {
       resetEditor();
     }
-    setStatus("Creator content deleted.");
+    setStatus("Course deleted.");
     await loadData();
   }
 
@@ -338,163 +456,209 @@ export default function CreatorUploadClient() {
     });
     setStatus(null);
     setError(null);
+    setUploadStage(null);
   }
+
+  const editorStage = editingItem ? getReleaseStage(editingItem) : "metadata";
+  const editorNarrative = editingItem
+    ? getReleaseNarrative(editingItem)
+    : {
+        title: "Create the shell first",
+        body: "A draft course gives the studio a stable lesson id, which the Shelby upload flow uses for source and manifest blobs.",
+        nextStep: "Save the first draft to unlock media uploads.",
+      };
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-white/10 bg-[#10141f] p-5">
+      <section className="app-panel rounded-[2rem] p-6">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">
-            {editingItem ? "Edit Creator Draft" : "Create Draft Lesson"}
-          </h2>
+          <div>
+            <p className="app-kicker">{editingItem ? "Editing draft" : "New course draft"}</p>
+            <h2 className="mt-2 text-2xl font-semibold">
+              {editingItem ? "Refine the release" : "Create the course shell first"}
+            </h2>
+          </div>
           {editingItem ? (
-            <button
-              type="button"
-              onClick={resetEditor}
-              className="rounded-md border border-white/20 px-3 py-1.5 text-xs hover:bg-white/10"
-            >
-              Cancel Edit
+            <button type="button" onClick={resetEditor} className="app-secondary-button px-4 py-2 text-sm">
+              Clear editor
             </button>
           ) : null}
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Course title" className="rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm" />
-          <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className="rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm">
+
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-white/65">
+          Drafts are always private. You only publish from the draft list below, after the lesson has a watch-ready manifest.
+        </p>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Course title" className="form-shell text-sm" />
+          <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className="form-shell text-sm">
             <option value="">Select category</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>{category.name}</option>
             ))}
           </select>
-          <input value={form.heroImageUrl} onChange={(event) => setForm({ ...form, heroImageUrl: event.target.value })} placeholder="Hero image URL" className="rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm" />
-          <input value={form.cardImageUrl} onChange={(event) => setForm({ ...form, cardImageUrl: event.target.value })} placeholder="Card image URL" className="rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm" />
-          <input type="number" value={form.year} onChange={(event) => setForm({ ...form, year: Number(event.target.value) })} placeholder="Year" className="rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm" />
-          <input type="number" value={form.durationMin} onChange={(event) => setForm({ ...form, durationMin: Number(event.target.value) })} placeholder="Duration (min)" className="rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm" />
-          <input value={form.maturityRating} onChange={(event) => setForm({ ...form, maturityRating: event.target.value })} placeholder="Maturity rating" className="rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm" />
-          <select value={form.publishStatus} onChange={(event) => setForm({ ...form, publishStatus: event.target.value as CreatorForm["publishStatus"] })} className="rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm">
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
-          </select>
+          <input value={form.heroImageUrl} onChange={(event) => setForm({ ...form, heroImageUrl: event.target.value })} placeholder="Hero image URL" className="form-shell text-sm" />
+          <input value={form.cardImageUrl} onChange={(event) => setForm({ ...form, cardImageUrl: event.target.value })} placeholder="Card image URL" className="form-shell text-sm" />
+          <input type="number" value={form.year} onChange={(event) => setForm({ ...form, year: Number(event.target.value) })} placeholder="Release year" className="form-shell text-sm" />
+          <input type="number" value={form.durationMin} onChange={(event) => setForm({ ...form, durationMin: Number(event.target.value) })} placeholder="Lesson duration in minutes" className="form-shell text-sm" />
+          <input value={form.maturityRating} onChange={(event) => setForm({ ...form, maturityRating: event.target.value })} placeholder="Audience rating" className="form-shell text-sm" />
         </div>
-        <textarea value={form.synopsis} onChange={(event) => setForm({ ...form, synopsis: event.target.value })} placeholder="Synopsis" className="mt-3 min-h-28 w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm" />
-        <div className="mt-4 rounded-xl border border-dashed border-white/10 bg-black/20 p-4">
-          <p className="text-sm font-medium">Asset Uploads</p>
-          <p className="mt-1 text-xs text-white/55">
-            Save the draft first, then attach a source video and upload a manifest when you are ready to publish.
-          </p>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
+
+        <textarea value={form.synopsis} onChange={(event) => setForm({ ...form, synopsis: event.target.value })} placeholder="Public synopsis" className="form-shell mt-3 min-h-32 text-sm" />
+
+        <div className="mt-5 rounded-[1.5rem] border border-dashed border-white/12 bg-black/20 p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="status-pill">{editingItem ? getReadinessLabel(editingItem) : "Draft not saved yet"}</span>
+            {form.streamAssetId ? <span className="status-pill">Source attached</span> : null}
+            {form.manifestBlobKey ? <span className="status-pill">Manifest attached</span> : null}
+          </div>
+          <p className="mt-3 text-sm font-medium">{editorNarrative.title}</p>
+          <p className="mt-1 text-sm leading-7 text-white/60">{editorNarrative.body}</p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
             <label className="block text-sm">
-              <span className="text-xs text-white/65">Source Video</span>
+              <span className="text-xs uppercase tracking-[0.18em] text-white/55">Source video</span>
               <input
                 type="file"
                 accept="video/*,.mp4,.mov,.m4v,.webm"
                 disabled={!editingItem || uploading}
                 onChange={(event) => void handleSourceUpload(event)}
-                className="mt-2 block w-full text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm file:font-semibold file:text-black disabled:opacity-50"
+                className="mt-2 block w-full text-sm text-white/80 file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black disabled:opacity-50"
               />
             </label>
             <label className="block text-sm">
-              <span className="text-xs text-white/65">HLS Manifest</span>
+              <span className="text-xs uppercase tracking-[0.18em] text-white/55">HLS manifest</span>
               <input
                 type="file"
                 accept=".m3u8,application/vnd.apple.mpegurl"
                 disabled={!editingItem || uploading}
                 onChange={(event) => void handleManifestUpload(event)}
-                className="mt-2 block w-full text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm file:font-semibold file:text-black disabled:opacity-50"
+                className="mt-2 block w-full text-sm text-white/80 file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black disabled:opacity-50"
               />
             </label>
           </div>
-          <div className="mt-3 space-y-1 text-xs text-white/60">
-            <p>{editingItem ? `Lesson ID: ${editingItem.lessonId}` : "Save a draft first to unlock uploads."}</p>
-            <p>{uploadStage ? `Upload Stage: ${uploadStage}` : form.streamAssetId ? `Latest Asset: ${form.streamAssetId}` : "No uploaded asset attached yet."}</p>
-            <p>{form.manifestBlobKey ? `Manifest: ${form.manifestBlobKey}` : "Manifest not uploaded yet. Drafts can be saved without one."}</p>
+
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            <div className="app-panel-soft rounded-2xl p-3">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Draft state</p>
+              <p className="mt-2 text-sm text-white/75">{editingItem ? "Ready for uploads" : "Save a draft to unlock uploads"}</p>
+            </div>
+            <div className="app-panel-soft rounded-2xl p-3">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Media pipeline</p>
+              <p className="mt-2 text-sm text-white/75">
+                {uploadStage
+                  ? uploadStage
+                  : editorStage === "processing"
+                    ? "Source is attached. Packaging still needs a manifest."
+                    : editorStage === "source-uploaded"
+                      ? "Source is attached. Packaging has not been requested yet."
+                    : form.streamAssetId
+                      ? "Source is attached to this draft."
+                      : "No source media yet."}
+              </p>
+            </div>
+            <div className="app-panel-soft rounded-2xl p-3">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/45">Next step</p>
+              <p className="mt-2 text-sm text-white/75">{editorNarrative.nextStep}</p>
+            </div>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => void (editingItem ? updateDraft() : createDraft())}
-            className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-black"
-          >
-            {editingItem ? "Save Changes" : "Save Creator Draft"}
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => void (editingItem ? updateDraft() : createDraft())} className="app-primary-button px-5 py-3 text-sm">
+            {editingItem ? "Save changes" : "Create draft"}
           </button>
           {status ? <p className="text-sm text-emerald-300">{status}</p> : null}
           {error ? <p className="text-sm text-rose-300">{error}</p> : null}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-[#10141f] p-5">
-        <h2 className="text-lg font-semibold">Drafts</h2>
-        <div className="mt-3 space-y-2">
+      <section className="app-panel rounded-[2rem] p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="app-kicker">Private workspace</p>
+            <h2 className="mt-2 text-2xl font-semibold">Drafts</h2>
+          </div>
+          <span className="status-pill">{draftItems.length} active</span>
+        </div>
+        <div className="mt-4 space-y-3">
           {draftItems.length > 0 ? draftItems.map((item) => (
-            <div key={item.id} className="rounded-lg border border-white/10 px-3 py-3">
+            <div key={item.id} className="rounded-[1.35rem] border border-white/10 bg-white/4 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="font-medium">{item.title}</p>
-                  <p className="mt-1 text-xs text-white/55">{item.lessonId}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium">{item.title}</p>
+                    <span className="status-pill">{getReadinessLabel(item)}</span>
+                  </div>
+                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-white/45">{item.categoryId}</p>
+                  <p className="mt-2 text-sm leading-7 text-white/60">{getReleaseNarrative(item).nextStep}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => beginEdit(item)}
-                    className="rounded-md border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
-                  >
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => beginEdit(item)} className="app-secondary-button px-3 py-2 text-xs">
                     Edit
                   </button>
+                  {getReleaseStage(item) === "source-uploaded" ? (
+                    <button
+                      type="button"
+                      onClick={() => void requestPackaging(item)}
+                      className="app-secondary-button px-3 py-2 text-xs"
+                    >
+                      Request packaging
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => void togglePublish(item)}
-                    className="rounded-md border border-cyan-300/30 bg-cyan-500/10 px-2 py-1 text-xs text-cyan-100 hover:bg-cyan-500/20"
+                    disabled={!item.manifestBlobKey}
+                    title={!item.manifestBlobKey ? "Attach an HLS manifest first." : "Publish this course"}
+                    className="app-primary-button px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-55"
                   >
                     Publish
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => void deleteItem(item)}
-                    className="rounded-md border border-rose-300/30 bg-rose-500/10 px-2 py-1 text-xs text-rose-100 hover:bg-rose-500/20"
-                  >
+                  <button type="button" onClick={() => void deleteItem(item)} className="app-secondary-button px-3 py-2 text-xs">
                     Delete
                   </button>
-                  <span className="rounded-full border border-white/15 px-2 py-1 text-xs capitalize">{item.publishStatus}</span>
                 </div>
               </div>
             </div>
           )) : (
-            <p className="text-sm text-white/70">No drafts yet.</p>
+            <p className="text-sm text-white/70">No drafts yet. Create the first one above.</p>
           )}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-[#10141f] p-5">
-        <h2 className="text-lg font-semibold">Published</h2>
-        <div className="mt-3 space-y-2">
+      <section className="app-panel rounded-[2rem] p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="app-kicker">Public catalog</p>
+            <h2 className="mt-2 text-2xl font-semibold">Published</h2>
+          </div>
+          <span className="status-pill">{publishedItems.length} live</span>
+        </div>
+        <div className="mt-4 space-y-3">
           {publishedItems.length > 0 ? publishedItems.map((item) => (
-            <div key={item.id} className="rounded-lg border border-white/10 px-3 py-3">
+            <div key={item.id} className="rounded-[1.35rem] border border-white/10 bg-white/4 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="font-medium">{item.title}</p>
-                  <p className="mt-1 text-xs text-white/55">{item.lessonId}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium">{item.title}</p>
+                    <span className="status-pill">Live</span>
+                  </div>
+                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-white/45">{item.categoryId}</p>
+                  <p className="mt-2 text-sm leading-7 text-white/60">{getReleaseNarrative(item).nextStep}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => beginEdit(item)}
-                    className="rounded-md border border-white/20 px-2 py-1 text-xs hover:bg-white/10"
-                  >
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => beginEdit(item)} className="app-secondary-button px-3 py-2 text-xs">
                     Edit
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => void togglePublish(item)}
-                    className="rounded-md border border-amber-300/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-100 hover:bg-amber-500/20"
-                  >
-                    Move to Draft
+                  <button type="button" onClick={() => void togglePublish(item)} className="app-secondary-button px-3 py-2 text-xs">
+                    Return to draft
                   </button>
-                  <span className="rounded-full border border-white/15 px-2 py-1 text-xs capitalize">{item.publishStatus}</span>
                 </div>
               </div>
             </div>
           )) : (
-            <p className="text-sm text-white/70">No published content yet.</p>
+            <p className="text-sm text-white/70">Nothing is public yet.</p>
           )}
         </div>
       </section>

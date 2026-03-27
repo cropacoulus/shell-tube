@@ -1,4 +1,5 @@
 import { canModeratePlatform } from "../auth/capabilities.ts";
+import { createOptionBConfig } from "../runtime/option-b-config.ts";
 import { buildAdminContentItem, type AdminContentItem } from "./admin-content-model.ts";
 import type { ContentRepository } from "../repositories/content-repository.ts";
 import type { CourseSummary } from "./course-flow.ts";
@@ -37,6 +38,11 @@ export async function listCreatorOwnedCourseSummaries(input: {
   profileId: string;
   role: "student" | "creator" | "admin";
 }): Promise<CourseSummary[]> {
+  if (createOptionBConfig().projectionStoreBackend === "upstash") {
+    const { listCreatorOwnedCourseSummariesFromProjection } = await import("../projections/creator-content-read-model.ts");
+    return listCreatorOwnedCourseSummariesFromProjection(input);
+  }
+
   const { getContentRepository } = await import("../repositories/index.ts");
   return listCreatorOwnedCourseSummariesWithRepository(getContentRepository(), input);
 }
@@ -66,6 +72,11 @@ export async function listCreatorOwnedAdminContentItems(input: {
   profileId: string;
   role: "student" | "creator" | "admin";
 }): Promise<AdminContentItem[]> {
+  if (createOptionBConfig().projectionStoreBackend === "upstash") {
+    const { listCreatorOwnedAdminContentItemsFromProjection } = await import("../projections/creator-content-read-model.ts");
+    return listCreatorOwnedAdminContentItemsFromProjection(input);
+  }
+
   const { getContentRepository } = await import("../repositories/index.ts");
   return listCreatorOwnedAdminContentItemsWithRepository(getContentRepository(), input);
 }
@@ -88,6 +99,11 @@ export async function canAccessCreatorCourse(input: {
   profileId: string;
   role: "student" | "creator" | "admin";
 }): Promise<boolean> {
+  if (createOptionBConfig().projectionStoreBackend === "upstash") {
+    const { canAccessCreatorCourseFromProjection } = await import("../projections/creator-content-read-model.ts");
+    return canAccessCreatorCourseFromProjection(input);
+  }
+
   const { getContentRepository } = await import("../repositories/index.ts");
   return canAccessCreatorCourseWithRepository(getContentRepository(), input);
 }
