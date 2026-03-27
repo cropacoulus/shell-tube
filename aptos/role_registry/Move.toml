@@ -1,0 +1,10 @@
+[package]
+name = "role_registry"
+version = "1.0.0"
+authors = ["Verra"]
+
+[addresses]
+role_registry = "_"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework", rev = "40782a5ac3387d6ed0b113f8b84a068d544a6787" }

@@ -8,9 +8,10 @@ import {
 import { getProfileFromProjection } from "@/lib/projections/profile-read-model";
 import { getCreatorApplicationRepository, getEventStore, getProfileRepository } from "@/lib/repositories";
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { getEffectiveUserRole } from "@/lib/server/effective-role";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 type CreatorApplicationCreateRequest = {
   pitch: string;
@@ -23,7 +24,7 @@ function isValid(body: unknown): body is CreatorApplicationCreateRequest {
 }
 
 export async function GET(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
 
   const optionB = createOptionBConfig();
@@ -37,8 +38,10 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
+  const proof = await requireWalletActionProof(req, auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as unknown;
   if (!isValid(body) || !body.pitch.trim()) {

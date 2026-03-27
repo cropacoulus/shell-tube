@@ -1,15 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import StickyNavbar from "@/app/_components/sticky-navbar";
-import { canModeratePlatform } from "@/lib/auth/capabilities";
-import { getAuthContextFromHeaders } from "@/lib/server/auth";
 import { listCourseSummaries } from "@/lib/server/course-flow";
 
 export default async function Home() {
-  const auth = await getAuthContextFromHeaders();
-  if (!auth) redirect("/signin");
-
   const courses = await listCourseSummaries();
   const featured = courses[0] ?? null;
   const spotlight = courses.slice(0, 3);
@@ -37,11 +31,6 @@ export default async function Home() {
               <Link href="/creator/uploads" className="app-secondary-button px-5 py-3 text-sm">
                 Open Creator Studio
               </Link>
-              {canModeratePlatform(auth.role) ? (
-                <Link href="/admin" className="app-secondary-button px-5 py-3 text-sm">
-                  Admin Console
-                </Link>
-              ) : null}
             </div>
 
             <div className="grid gap-3 pt-2 sm:grid-cols-3">

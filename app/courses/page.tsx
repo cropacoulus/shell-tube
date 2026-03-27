@@ -1,14 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import StickyNavbar from "@/app/_components/sticky-navbar";
-import { getAuthContextFromHeaders } from "@/lib/server/auth";
 import { listCourseSummaries } from "@/lib/server/course-flow";
 
 export default async function CoursesPage() {
-  const auth = await getAuthContextFromHeaders();
-  if (!auth) redirect("/signin");
-
   const courses = await listCourseSummaries();
 
   return (

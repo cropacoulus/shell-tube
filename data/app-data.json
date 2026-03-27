@@ -10,8 +10,8 @@
       "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
       "displayName": "0xf646...c7d2",
       "avatarUrl": "https://api.testnet.shelby.xyz/shelby/v1/blobs/0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/profiles/avatar.webp",
-      "role": "creator",
-      "updatedAt": "2026-03-27T02:01:17.973Z"
+      "role": "student",
+      "updatedAt": "2026-03-27T04:23:39.182Z"
     }
   },
   "categories": [
@@ -584,6 +584,24 @@
         "positionMs": 30526,
         "peerHitRatio": 0,
         "deviceId": "web-player"
+      }
+    },
+    {
+      "id": "evt_51a8ffd3-75e",
+      "type": "profile_updated",
+      "aggregateType": "profile",
+      "aggregateId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "occurredAt": "2026-03-27T04:23:39.189Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "student",
+      "idempotencyKey": "wallet-verify-profile-sync:0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2:2026-03-27T04:23:39.182Z",
+      "version": 1,
+      "payload": {
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "displayName": "0xf646...c7d2",
+        "avatarUrl": "https://api.testnet.shelby.xyz/shelby/v1/blobs/0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/profiles/avatar.webp",
+        "role": "student",
+        "updatedAt": "2026-03-27T04:23:39.182Z"
       }
     }
   ]

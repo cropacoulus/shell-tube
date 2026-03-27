@@ -1,4 +1,4 @@
-import { canModeratePlatform } from "@/lib/auth/capabilities";
+import { requireAdmin } from "@/lib/blockchain/role-registry";
 import type { DomainEvent } from "@/lib/events/contracts";
 import { createDomainEvent } from "@/lib/events/event-factory";
 import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
@@ -13,18 +13,21 @@ import {
   getProfileRepository,
 } from "@/lib/repositories";
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 type CreatorApplicationPatchRequest = {
   id: string;
   status: "approved" | "rejected";
 };
 
-function ensureAdmin(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+async function ensureAdmin(req: Request) {
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return { ok: false as const, response: jsonError("UNAUTHORIZED", "Session is required", 401) };
-  if (!canModeratePlatform(auth.role)) {
+  try {
+    await requireAdmin(auth.userId);
+  } catch {
     return { ok: false as const, response: jsonError("FORBIDDEN", "Admin access required", 403) };
   }
   return { ok: true as const, auth };
@@ -37,7 +40,7 @@ function isValidPatch(body: unknown): body is CreatorApplicationPatchRequest {
 }
 
 export async function GET(req: Request) {
-  const gate = ensureAdmin(req);
+  const gate = await ensureAdmin(req);
   if (!gate.ok) return gate.response;
 
   const optionB = createOptionBConfig();
@@ -57,8 +60,10 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const gate = ensureAdmin(req);
+  const gate = await ensureAdmin(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as unknown;
   if (!isValidPatch(body)) {

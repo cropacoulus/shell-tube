@@ -13,7 +13,7 @@ import { ServiceError } from "@/lib/services/http-client";
 import { buildPlaybackContext, toEntitlementRequest } from "@/lib/server/playback-context";
 import { checkEntitlement } from "@/lib/services/entitlement-client";
 import { createPlaybackSession } from "@/lib/services/playback-client";
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 
 function isValidRequest(body: unknown): body is PlaybackTokenRequest {
   if (!body || typeof body !== "object") return false;
@@ -26,7 +26,7 @@ function isValidRequest(body: unknown): body is PlaybackTokenRequest {
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) {
     return jsonError("UNAUTHORIZED", "Session is required", 401);
   }

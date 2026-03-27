@@ -1,4 +1,4 @@
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import type { LessonProgressRecord } from "@/lib/contracts/activity";
 import type { DomainEvent } from "@/lib/events/contracts";
@@ -20,7 +20,7 @@ type ProgressWriteRequest = {
 };
 
 export async function GET(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
   const optionB = createOptionBConfig();
   const items = optionB.projectionStoreBackend === "upstash"
@@ -43,7 +43,7 @@ function isValidRequest(body: unknown): body is ProgressWriteRequest {
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
 
   const body = (await req.json().catch(() => null)) as unknown;

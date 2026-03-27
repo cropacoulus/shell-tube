@@ -12,11 +12,12 @@ import {
 } from "@/lib/projections/creator-content-read-model";
 import { getContentRepository, getEventStore } from "@/lib/repositories";
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { getEffectiveUserRole } from "@/lib/server/effective-role";
 import { buildAdminContentItem } from "@/lib/server/admin-content-model";
 import { listCreatorOwnedAdminContentItems } from "@/lib/server/creator-content-flow";
 import { jsonError, jsonOk } from "@/lib/server/http";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 type CreatorContentCreateRequest = {
   title: string;
@@ -60,7 +61,7 @@ function isValidCreate(body: unknown): body is CreatorContentCreateRequest {
 }
 
 async function ensureCreator(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return { ok: false as const, response: jsonError("UNAUTHORIZED", "Session is required", 401) };
   const effectiveRole = await getEffectiveUserRole({
     userId: auth.userId,
@@ -115,6 +116,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const gate = await ensureCreator(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as unknown;
   if (!isValidCreate(body)) return jsonError("INVALID_REQUEST", "Invalid creator content payload", 422);
@@ -247,6 +250,8 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const gate = await ensureCreator(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as CreatorContentPatchRequest | null;
   if (!body || typeof body.courseId !== "string" || typeof body.lessonId !== "string") {
@@ -428,6 +433,8 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   const gate = await ensureCreator(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as CreatorContentDeleteRequest | null;
   if (!body || typeof body.courseId !== "string") {

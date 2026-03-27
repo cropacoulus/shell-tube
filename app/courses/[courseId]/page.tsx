@@ -1,53 +1,22 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import StickyNavbar from "@/app/_components/sticky-navbar";
-import { getAuthContextFromHeaders } from "@/lib/server/auth";
 import { getCourseById, listLessonsByCourse } from "@/lib/server/course-flow";
-import { checkEntitlement } from "@/lib/services/entitlement-client";
-import { ServiceError } from "@/lib/services/http-client";
 
 type PageProps = {
   params: Promise<{ courseId: string }>;
 };
 
 export default async function CourseDetailPage({ params }: PageProps) {
-  const auth = await getAuthContextFromHeaders();
-  if (!auth) redirect("/signin");
-
   const { courseId } = await params;
   const [course, lessons] = await Promise.all([getCourseById(courseId), listLessonsByCourse(courseId)]);
   if (!course) notFound();
-  const lessonsWithEntitlement = await Promise.all(
-    lessons.map(async (lesson) => {
-      try {
-        const entitlement = await checkEntitlement({
-          userId: auth.userId,
-          profileId: auth.profileId,
-          titleId: lesson.id,
-          region: auth.region,
-        });
-        return {
-          ...lesson,
-          allowed: entitlement.allowed,
-          reason: entitlement.reason,
-        };
-      } catch (error) {
-        if (error instanceof ServiceError) {
-          return {
-            ...lesson,
-            allowed: false,
-            reason: error.message,
-          };
-        }
-        return {
-          ...lesson,
-          allowed: false,
-          reason: "Entitlement check failed",
-        };
-      }
-    }),
-  );
+  const lessonsWithEntitlement = lessons.map((lesson) => ({
+    ...lesson,
+    allowed: true,
+    reason: "Connect your wallet to verify access when playback starts.",
+  }));
 
   return (
     <div className="app-shell">
@@ -83,20 +52,14 @@ export default async function CourseDetailPage({ params }: PageProps) {
                   <p className="text-xs uppercase tracking-[0.18em] text-white/45">Lesson {index + 1}</p>
                   <p className="text-lg font-semibold">{lesson.title}</p>
                   <p className={`text-xs uppercase tracking-[0.18em] ${lesson.allowed ? "text-emerald-300" : "text-amber-200"}`}>
-                    {lesson.allowed ? "Available now" : lesson.reason || "Access pending"}
+                    {lesson.allowed ? "Open lesson" : lesson.reason || "Access pending"}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="status-pill">{lesson.durationMin} min</span>
-                  {lesson.allowed ? (
-                    <Link href={`/lesson/${lesson.id}`} className="app-primary-button px-4 py-2 text-sm">
-                      Start lesson
-                    </Link>
-                  ) : (
-                    <span className="app-secondary-button cursor-not-allowed px-4 py-2 text-sm opacity-70">
-                      Locked
-                    </span>
-                  )}
+                  <Link href={`/lesson/${lesson.id}`} className="app-primary-button px-4 py-2 text-sm">
+                    Start lesson
+                  </Link>
                 </div>
               </div>
             </div>

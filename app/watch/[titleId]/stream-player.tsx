@@ -8,6 +8,7 @@ import type { DeviceClass, NetworkType } from "@/lib/contracts/common";
 import type { PlaybackTokenResponse } from "@/lib/contracts/playback";
 import type { QoeEvent, QoeEventsIngestRequest } from "@/lib/contracts/qoe";
 import type { ShelbyBootstrapResponse } from "@/lib/contracts/shelby";
+import { authFetch } from "@/lib/client/auth-fetch";
 import { buildProgressPayload } from "@/lib/player/progress-payload";
 import { ShelbyAdapter } from "@/lib/player/shelby-adapter";
 
@@ -165,7 +166,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
     };
     qoeBufferRef.current = [];
 
-    await fetch("/api/v1/qoe/events", {
+    await authFetch("/api/v1/qoe/events", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -189,7 +190,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
       if (!shouldSend || progressFlushRef.current.pending) return;
 
       progressFlushRef.current.pending = true;
-      await fetch("/api/progress", {
+      await authFetch("/api/progress", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -376,7 +377,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
     let canceled = false;
 
     async function bootstrapShelby(playbackSessionId: string) {
-      const response = await fetch("/api/v1/shelby/bootstrap", {
+      const response = await authFetch("/api/v1/shelby/bootstrap", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -394,7 +395,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
     }
 
     async function getPlaybackToken() {
-      const response = await fetch("/api/v1/playback/token", {
+      const response = await authFetch("/api/v1/playback/token", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

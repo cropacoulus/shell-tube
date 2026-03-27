@@ -1,4 +1,5 @@
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { requireAdmin } from "@/lib/blockchain/role-registry";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import type { FilmCategory } from "@/lib/contracts/admin";
 import { createDomainEvent } from "@/lib/events/event-factory";
 import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
@@ -7,6 +8,7 @@ import { getCategoryFromProjection, listCategoriesFromProjection } from "@/lib/p
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { getContentRepository, getEventStore } from "@/lib/repositories";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 type CategoryCreateRequest = {
   name: string;
@@ -29,15 +31,19 @@ function isValid(body: unknown): body is CategoryCreateRequest {
   return typeof candidate.name === "string";
 }
 
-function ensureAdmin(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+async function ensureAdmin(req: Request) {
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return { ok: false as const, response: jsonError("UNAUTHORIZED", "Session is required", 401) };
-  if (auth.role !== "admin") return { ok: false as const, response: jsonError("FORBIDDEN", "Admin access required", 403) };
+  try {
+    await requireAdmin(auth.userId);
+  } catch {
+    return { ok: false as const, response: jsonError("FORBIDDEN", "Admin access required", 403) };
+  }
   return { ok: true as const, auth };
 }
 
 export async function GET(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
   const optionB = createOptionBConfig();
   return jsonOk(
@@ -48,8 +54,10 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const gate = ensureAdmin(req);
+  const gate = await ensureAdmin(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as unknown;
   if (!isValid(body)) return jsonError("INVALID_REQUEST", "Category name is required", 422);
@@ -80,8 +88,10 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const gate = ensureAdmin(req);
+  const gate = await ensureAdmin(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as CategoryPatchRequest | null;
   if (!body || typeof body.id !== "string") {
@@ -126,8 +136,10 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const gate = ensureAdmin(req);
+  const gate = await ensureAdmin(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as CategoryDeleteRequest | null;
   if (!body || typeof body.id !== "string") {

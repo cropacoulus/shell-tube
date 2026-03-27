@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Network, Serializer } from "@aptos-labs/ts-sdk";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { setStoredAccessToken } from "@/lib/client/access-token";
 import { resolveAppNetwork } from "@/lib/wallet/network";
 
 function bytesToHex(bytes: Uint8Array) {
@@ -195,6 +196,14 @@ export default function SignInPage() {
             .filter(Boolean)
             .join("\n"),
         );
+      }
+      const verifyBody = (await verifyRes.json()) as {
+        data?: {
+          accessToken?: string;
+        };
+      };
+      if (verifyBody.data?.accessToken) {
+        setStoredAccessToken(verifyBody.data.accessToken);
       }
 
       setStatus("Signed in. Redirecting...");

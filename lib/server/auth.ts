@@ -1,6 +1,9 @@
 import { headers } from "next/headers";
 
 import { normalizeUserRole } from "@/lib/auth/capabilities";
+import { DEFAULT_REGION } from "@/lib/auth/constants";
+import { verifySessionToken } from "@/lib/auth/jwt";
+import { getSessionAuthSecret } from "@/lib/auth/session-secret";
 import type { AuthContext } from "@/lib/auth/types";
 
 function fromHeaderMap(headerMap: Headers): AuthContext | null {
@@ -15,9 +18,48 @@ function fromHeaderMap(headerMap: Headers): AuthContext | null {
 }
 
 export async function getAuthContextFromHeaders(): Promise<AuthContext | null> {
-  return fromHeaderMap(await headers());
+  const headerMap = await headers();
+  const direct = fromHeaderMap(headerMap);
+  if (direct) return direct;
+
+  const authorization = headerMap.get("authorization");
+  const token = authorization?.replace(/^Bearer\s+/i, "");
+  const secret = getSessionAuthSecret();
+  if (!token) return null;
+
+  const claims = await verifySessionToken(token, secret);
+  if (!claims) return null;
+
+  return {
+    userId: claims.sub,
+    profileId: claims.profileId,
+    region: claims.region || DEFAULT_REGION,
+    sessionId: claims.sessionId,
+    role: claims.role,
+  };
 }
 
 export function getAuthContextFromRequest(req: Request): AuthContext | null {
   return fromHeaderMap(req.headers);
+}
+
+export async function getAuthContextFromRequestOrBearer(req: Request): Promise<AuthContext | null> {
+  const direct = fromHeaderMap(req.headers);
+  if (direct) return direct;
+
+  const authorization = req.headers.get("authorization");
+  const token = authorization?.replace(/^Bearer\s+/i, "");
+  const secret = getSessionAuthSecret();
+  if (!token) return null;
+
+  const claims = await verifySessionToken(token, secret);
+  if (!claims) return null;
+
+  return {
+    userId: claims.sub,
+    profileId: claims.profileId,
+    region: claims.region || DEFAULT_REGION,
+    sessionId: claims.sessionId,
+    role: claims.role,
+  };
 }

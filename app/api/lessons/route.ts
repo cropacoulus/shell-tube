@@ -1,4 +1,4 @@
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { listLessonsByCourse } from "@/lib/server/course-flow";
 import { ServiceError } from "@/lib/services/http-client";
@@ -7,7 +7,7 @@ import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { listLessonsByCourseFromProjection } from "@/lib/projections/catalog-read-model";
 
 export async function GET(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
 
   const url = new URL(req.url);

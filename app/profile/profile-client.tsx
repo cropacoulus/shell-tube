@@ -10,6 +10,8 @@ import {
   ShelbyBlobClient,
 } from "@shelby-protocol/sdk/browser";
 
+import { authFetch } from "@/lib/client/auth-fetch";
+import { buildWalletActionHeaders } from "@/lib/wallet/action-proof-client";
 import { resolveAppNetwork } from "@/lib/wallet/network";
 
 type ProfileData = {
@@ -20,7 +22,7 @@ type ProfileData = {
 };
 
 type ProfileClientProps = {
-  initialProfile: ProfileData;
+  initialProfile?: ProfileData | null;
 };
 
 function normalizeAvatarUrl(avatarUrl?: string) {
@@ -50,10 +52,10 @@ const roleCopy: Record<ProfileData["role"], string> = {
   admin: "Platform operations are unlocked, including creator review and content moderation surfaces.",
 };
 
-export default function ProfileClient({ initialProfile }: ProfileClientProps) {
-  const { account, connected, signAndSubmitTransaction } = useWallet();
+export default function ProfileClient({ initialProfile = null }: ProfileClientProps) {
+  const { account, connected, signAndSubmitTransaction, signMessage } = useWallet();
   const [profile, setProfile] = useState<ProfileData | null>(initialProfile);
-  const [displayName, setDisplayName] = useState(initialProfile.displayName);
+  const [displayName, setDisplayName] = useState(initialProfile?.displayName ?? "");
   const [creatorPitch, setCreatorPitch] = useState("");
   const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -65,8 +67,21 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
         ? account.address.toString()
         : null;
 
+  async function buildActionHeaders(method: "POST" | "PUT", pathname: string) {
+    if (!currentAddress || !account?.publicKey || !signMessage) {
+      throw new Error("Connect the same wallet first to approve this action.");
+    }
+    return buildWalletActionHeaders({
+      address: currentAddress,
+      publicKey: account.publicKey,
+      signMessage,
+      method,
+      pathname,
+    });
+  }
+
   async function loadProfile() {
-    const res = await fetch("/api/v1/profile");
+    const res = await authFetch("/api/v1/profile");
     if (!res.ok) return;
     const body = (await res.json()) as { data: ProfileData };
     setProfile(body.data);
@@ -74,7 +89,7 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
   }
 
   async function fetchLatestCreatorApplicationStatus() {
-    const res = await fetch("/api/creator/applications");
+    const res = await authFetch("/api/creator/applications");
     if (!res.ok) return null;
     const body = (await res.json()) as {
       data: Array<{ status: "pending" | "approved" | "rejected"; updatedAt: string }>;
@@ -87,9 +102,15 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
   async function submitCreatorApplication() {
     setError(null);
     setStatus("Submitting creator application...");
-    const res = await fetch("/api/creator/applications", {
+    if (!currentAddress || !account?.publicKey || !signMessage) {
+      setError("Connect the same wallet first to approve this creator application.");
+      setStatus(null);
+      return;
+    }
+    const proofHeaders = await buildActionHeaders("POST", "/api/creator/applications");
+    const res = await authFetch("/api/creator/applications", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...proofHeaders },
       body: JSON.stringify({ pitch: creatorPitch }),
     });
     if (!res.ok) {
@@ -121,9 +142,15 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
   async function saveProfile() {
     setError(null);
     setStatus("Saving profile...");
-    const res = await fetch("/api/v1/profile", {
+    if (!currentAddress || !account?.publicKey || !signMessage) {
+      setError("Connect the same wallet first to approve this profile update.");
+      setStatus(null);
+      return;
+    }
+    const proofHeaders = await buildActionHeaders("PUT", "/api/v1/profile");
+    const res = await authFetch("/api/v1/profile", {
       method: "PUT",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...proofHeaders },
       body: JSON.stringify({ displayName }),
     });
     if (!res.ok) {
@@ -141,7 +168,8 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
       if (!connected || !currentAddress || !signAndSubmitTransaction) {
         throw new Error("Connect the same wallet first so the Verra avatar blob can be registered on L1.");
       }
-      if (currentAddress.toLowerCase() !== initialProfile.userId.toLowerCase()) {
+      const targetUserId = profile?.userId ?? initialProfile?.userId;
+      if (!targetUserId || currentAddress.toLowerCase() !== targetUserId.toLowerCase()) {
         throw new Error("Connected wallet does not match the signed-in profile.");
       }
 
@@ -188,8 +216,10 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
       setStatus("Uploading avatar...");
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/v1/profile/avatar", {
+      const proofHeaders = await buildActionHeaders("POST", "/api/v1/profile/avatar");
+      const res = await authFetch("/api/v1/profile/avatar", {
         method: "POST",
+        headers: proofHeaders,
         body: form,
       });
       if (!res.ok) {
@@ -205,7 +235,7 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
     }
   }
 
-  const displayIdentity = profile?.displayName || `${initialProfile.userId.slice(0, 6)}...${initialProfile.userId.slice(-4)}`;
+  const displayIdentity = profile?.displayName || `${(profile?.userId ?? currentAddress ?? "0x").slice(0, 6)}...${(profile?.userId ?? currentAddress ?? "0x").slice(-4)}`;
 
   return (
     <div className="space-y-6">

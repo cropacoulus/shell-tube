@@ -10,6 +10,8 @@ import {
   ShelbyBlobClient,
 } from "@shelby-protocol/sdk/browser";
 
+import { authFetch } from "@/lib/client/auth-fetch";
+import { buildWalletActionHeaders } from "@/lib/wallet/action-proof-client";
 import type { AdminContentItem } from "@/lib/server/admin-content-model";
 import {
   getCreatorContentFieldErrors,
@@ -112,7 +114,7 @@ function getReleaseNarrative(
 }
 
 export default function CreatorUploadClient() {
-  const { account, connected, signAndSubmitTransaction } = useWallet();
+  const { account, connected, signAndSubmitTransaction, signMessage } = useWallet();
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<AdminContentItem[]>([]);
   const [form, setForm] = useState<CreatorForm>(emptyForm);
@@ -132,10 +134,23 @@ export default function CreatorUploadClient() {
         ? account.address.toString()
         : null;
 
+  async function buildActionHeaders(method: "POST" | "PATCH" | "DELETE", pathname: string) {
+    if (!currentAddress || !account?.publicKey || !signMessage) {
+      throw new Error("Connect the same wallet first to approve this creator action.");
+    }
+    return buildWalletActionHeaders({
+      address: currentAddress,
+      publicKey: account.publicKey,
+      signMessage,
+      method,
+      pathname,
+    });
+  }
+
   const loadData = useCallback(async () => {
     const [categoryRes, contentRes] = await Promise.all([
-      fetch("/api/v1/admin/categories"),
-      fetch("/api/v1/creator/content"),
+      authFetch("/api/v1/admin/categories"),
+      authFetch("/api/v1/creator/content"),
     ]);
 
     if (categoryRes.ok) {
@@ -262,8 +277,9 @@ export default function CreatorUploadClient() {
         input.file.type || (input.folder === "manifests" ? "application/vnd.apple.mpegurl" : "video/mp4"),
       );
 
-      const response = await fetch("/api/v1/storage/ingest", {
+      const response = await authFetch("/api/v1/storage/ingest", {
         method: "POST",
+        headers: await buildActionHeaders("POST", "/api/v1/storage/ingest"),
         body: formData,
       });
       if (!response.ok) {
@@ -327,9 +343,12 @@ export default function CreatorUploadClient() {
       setError(validationError);
       return;
     }
-    const response = await fetch("/api/v1/creator/content", {
+    const response = await authFetch("/api/v1/creator/content", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(await buildActionHeaders("POST", "/api/v1/creator/content")),
+      },
       body: JSON.stringify({
         ...form,
         publishStatus: "draft",
@@ -353,9 +372,12 @@ export default function CreatorUploadClient() {
     if (!editingItem) return;
     setError(null);
     setStatus(null);
-    const response = await fetch("/api/v1/creator/content", {
+    const response = await authFetch("/api/v1/creator/content", {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(await buildActionHeaders("PATCH", "/api/v1/creator/content")),
+      },
       body: JSON.stringify({
         courseId: editingItem.courseId,
         lessonId: editingItem.lessonId,
@@ -385,9 +407,12 @@ export default function CreatorUploadClient() {
       setError("Attach a watch-ready HLS manifest before publishing this course.");
       return;
     }
-    const response = await fetch("/api/v1/creator/content", {
+    const response = await authFetch("/api/v1/creator/content", {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(await buildActionHeaders("PATCH", "/api/v1/creator/content")),
+      },
       body: JSON.stringify({
         courseId: item.courseId,
         lessonId: item.lessonId,
@@ -406,9 +431,12 @@ export default function CreatorUploadClient() {
   async function requestPackaging(item: AdminContentItem) {
     setError(null);
     setStatus("Queueing packaging...");
-    const response = await fetch("/api/v1/creator/content/process", {
+    const response = await authFetch("/api/v1/creator/content/process", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(await buildActionHeaders("POST", "/api/v1/creator/content/process")),
+      },
       body: JSON.stringify({
         courseId: item.courseId,
         lessonId: item.lessonId,
@@ -427,9 +455,12 @@ export default function CreatorUploadClient() {
   async function deleteItem(item: AdminContentItem) {
     setError(null);
     setStatus(null);
-    const response = await fetch("/api/v1/creator/content", {
+    const response = await authFetch("/api/v1/creator/content", {
       method: "DELETE",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(await buildActionHeaders("DELETE", "/api/v1/creator/content")),
+      },
       body: JSON.stringify({
         courseId: item.courseId,
       }),

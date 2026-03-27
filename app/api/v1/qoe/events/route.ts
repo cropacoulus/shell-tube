@@ -8,7 +8,7 @@ import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { ingestQoeEvents } from "@/lib/services/analytics-client";
 import { ServiceError } from "@/lib/services/http-client";
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { allowMockFallback } from "@/lib/services/runtime";
 
 function isValidRequest(body: unknown): body is QoeEventsIngestRequest {
@@ -18,7 +18,7 @@ function isValidRequest(body: unknown): body is QoeEventsIngestRequest {
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) {
     return jsonError("UNAUTHORIZED", "Session is required", 401);
   }

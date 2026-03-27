@@ -5,9 +5,10 @@ import { runProjectionBatch } from "@/lib/jobs/projection-runner";
 import { getCreatorAdminContentItemByCourseIdFromProjection } from "@/lib/projections/creator-content-read-model";
 import { getContentRepository, getEventStore } from "@/lib/repositories";
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { getEffectiveUserRole } from "@/lib/server/effective-role";
 import { jsonError, jsonOk } from "@/lib/server/http";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 type ProcessRequest = {
   courseId: string;
@@ -15,7 +16,7 @@ type ProcessRequest = {
 };
 
 async function ensureCreator(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return { ok: false as const, response: jsonError("UNAUTHORIZED", "Session is required", 401) };
   const effectiveRole = await getEffectiveUserRole({
     userId: auth.userId,
@@ -36,6 +37,8 @@ async function ensureCreator(req: Request) {
 export async function POST(req: Request) {
   const gate = await ensureCreator(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as ProcessRequest | null;
   if (!body?.courseId || !body?.lessonId) {

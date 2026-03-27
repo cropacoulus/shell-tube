@@ -1,4 +1,5 @@
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { requireAdmin } from "@/lib/blockchain/role-registry";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import type { FilmLessonRecord } from "@/lib/contracts/admin";
 import { createDomainEvent } from "@/lib/events/event-factory";
 import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
@@ -12,6 +13,7 @@ import {
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { getContentRepository, getEventStore } from "@/lib/repositories";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 type LessonCreateRequest = {
   courseId: string;
@@ -54,15 +56,19 @@ function isValid(body: unknown): body is LessonCreateRequest {
   );
 }
 
-function ensureAdmin(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+async function ensureAdmin(req: Request) {
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return { ok: false as const, response: jsonError("UNAUTHORIZED", "Session is required", 401) };
-  if (auth.role !== "admin") return { ok: false as const, response: jsonError("FORBIDDEN", "Admin access required", 403) };
+  try {
+    await requireAdmin(auth.userId);
+  } catch {
+    return { ok: false as const, response: jsonError("FORBIDDEN", "Admin access required", 403) };
+  }
   return { ok: true as const, auth };
 }
 
 export async function GET(req: Request) {
-  const gate = ensureAdmin(req);
+  const gate = await ensureAdmin(req);
   if (!gate.ok) return gate.response;
   const optionB = createOptionBConfig();
   const repository = getContentRepository();
@@ -83,8 +89,10 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const gate = ensureAdmin(req);
+  const gate = await ensureAdmin(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
   const repository = getContentRepository();
   const optionB = createOptionBConfig();
 
@@ -139,8 +147,10 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const gate = ensureAdmin(req);
+  const gate = await ensureAdmin(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
   const body = (await req.json().catch(() => null)) as LessonPatchRequest | null;
   if (!body || typeof body.id !== "string") {
     return jsonError("INVALID_REQUEST", "Lesson id is required", 422);
@@ -203,8 +213,10 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const gate = ensureAdmin(req);
+  const gate = await ensureAdmin(req);
   if (!gate.ok) return gate.response;
+  const proof = await requireWalletActionProof(req, gate.auth.userId);
+  if (!proof.ok) return proof.response;
   const body = (await req.json().catch(() => null)) as LessonDeleteRequest | null;
   if (!body || typeof body.id !== "string") {
     return jsonError("INVALID_REQUEST", "Lesson id is required", 422);

@@ -1,44 +1,47 @@
+"use client";
+
+import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { canModeratePlatform, canViewCreatorAnalytics } from "@/lib/auth/capabilities";
+import { authFetch } from "@/lib/client/auth-fetch";
+import { clearStoredAccessToken } from "@/lib/client/access-token";
+import { type AuthenticatedProfile, useAuthenticatedProfile } from "@/app/_components/client-auth";
 import { NavbarLinks } from "@/app/_components/navbar-links";
-import { getProfileFromProjection } from "@/lib/projections/profile-read-model";
-import { getProfileRepository } from "@/lib/repositories";
-import { createOptionBConfig } from "@/lib/runtime/option-b-config";
-import { getAuthContextFromHeaders } from "@/lib/server/auth";
-import { getEffectiveUserRole } from "@/lib/server/effective-role";
 
 function shortAddress(value: string) {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-export default async function StickyNavbar() {
-  const auth = await getAuthContextFromHeaders();
-  if (!auth) return null;
-  const optionB = createOptionBConfig();
-  const [profile, effectiveRole] = await Promise.all([
-    optionB.projectionStoreBackend === "upstash"
-      ? getProfileFromProjection(auth.userId)
-      : getProfileRepository().getProfile(auth.userId),
-    getEffectiveUserRole({
-      userId: auth.userId,
-      fallbackRole: auth.role,
-    }),
-  ]);
-  const navItems = [
+function buildNavItems(profile: AuthenticatedProfile | null) {
+  const role = profile?.role ?? "student";
+  return [
     { href: "/", label: "Home", match: "exact" as const },
     { href: "/courses", label: "Catalog" },
-    { href: "/dashboard", label: "Watchlist" },
-    { href: "/profile", label: "Profile" },
-    ...(canViewCreatorAnalytics(effectiveRole)
+    ...(profile ? [{ href: "/dashboard", label: "Watchlist" }, { href: "/profile", label: "Profile" }] : []),
+    ...(profile && canViewCreatorAnalytics(role)
       ? [
           { href: "/creator/uploads", label: "Studio" },
           { href: "/creator/courses", label: "Courses" },
           { href: "/creator/analytics", label: "Analytics" },
         ]
       : []),
-    ...(canModeratePlatform(effectiveRole) ? [{ href: "/admin", label: "Admin" }] : []),
+    ...(profile && canModeratePlatform(role) ? [{ href: "/admin", label: "Admin" }] : []),
   ];
+}
+
+export default function StickyNavbar() {
+  const router = useRouter();
+  const { loading, profile } = useAuthenticatedProfile();
+  const navItems = useMemo(() => buildNavItems(profile), [profile]);
+
+  async function handleLogout() {
+    clearStoredAccessToken();
+    await authFetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    router.replace("/signin");
+    router.refresh();
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#08111b]/80 backdrop-blur-xl">
@@ -58,23 +61,37 @@ export default async function StickyNavbar() {
           <div className="hidden md:block">
             <NavbarLinks items={navItems} />
           </div>
-          <span className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65 md:inline-flex">
-            {effectiveRole}
-          </span>
-          {profile?.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatarUrl} alt="avatar" className="h-8 w-8 rounded-full border border-white/20 object-cover" />
+          {loading ? (
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/55">
+              Checking wallet…
+            </span>
+          ) : profile ? (
+            <>
+              <span className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65 md:inline-flex">
+                {profile.role}
+              </span>
+              {profile.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.avatarUrl} alt="avatar" className="h-8 w-8 rounded-full border border-white/20 object-cover" />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs">
+                  {profile.userId.slice(2, 4).toUpperCase()}
+                </div>
+              )}
+              <span className="hidden text-xs text-white/60 sm:inline">{shortAddress(profile.userId)}</span>
+              <button
+                type="button"
+                onClick={() => void handleLogout()}
+                className="rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10"
+              >
+                Logout
+              </button>
+            </>
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs">
-              {auth.userId.slice(2, 4).toUpperCase()}
-            </div>
+            <Link href="/signin" className="rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10">
+              Sign in
+            </Link>
           )}
-          <span className="hidden text-xs text-white/60 sm:inline">{shortAddress(auth.userId)}</span>
-          <form action="/api/auth/logout" method="post">
-            <button className="rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10">
-              Logout
-            </button>
-          </form>
         </div>
 
         <div className="w-full md:hidden">

@@ -11,13 +11,13 @@ import {
 
 import {
   DEFAULT_REGION,
-  SESSION_COOKIE_NAME,
   WALLET_NONCE_COOKIE_NAME,
 } from "@/lib/auth/constants";
 import { normalizeUserRole } from "@/lib/auth/capabilities";
-import { resolveEffectiveUserRole } from "@/lib/auth/effective-role";
+import { getUserRoleKind } from "@/lib/blockchain/role-registry";
 import { signSessionToken } from "@/lib/auth/jwt";
-import { isAdminWallet, isAptosAddress } from "@/lib/auth/wallet";
+import { getSessionAuthSecret } from "@/lib/auth/session-secret";
+import { isAptosAddress } from "@/lib/auth/wallet";
 import { createDomainEvent } from "@/lib/events/event-factory";
 import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
 import { runProjectionBatch } from "@/lib/jobs/projection-runner";
@@ -46,15 +46,6 @@ type NonceCookiePayload = {
   region: string;
   message?: string;
 };
-
-function isCreatorWallet(address: string) {
-  const raw = process.env.CREATOR_WALLETS ?? "";
-  const wallets = raw
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-  return wallets.includes(address.toLowerCase());
-}
 
 function isValid(body: unknown): body is WalletVerifyRequest {
   if (!body || typeof body !== "object") return false;
@@ -125,13 +116,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const secret = process.env.AUTH_JWT_SECRET;
-  if (!secret) {
-    return Response.json(
-      { ok: false, error: { code: "SERVER_MISCONFIGURED", message: "AUTH_JWT_SECRET is not set" } },
-      { status: 500 },
-    );
-  }
+  const secret = getSessionAuthSecret();
 
   const cookieStore = await cookies();
   const noncePayload = parseNoncePayload(cookieStore.get(WALLET_NONCE_COOKIE_NAME)?.value);
@@ -267,17 +252,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const envRole = normalizeUserRole(
-    isAdminWallet(body.address) ? "admin" : isCreatorWallet(body.address) ? "creator" : "student",
-  );
   const optionB = createOptionBConfig();
   const existingProfile = optionB.projectionStoreBackend === "upstash"
     ? await getProfileFromProjection(body.address.toLowerCase())
     : await getProfileRepository().getProfile(body.address.toLowerCase());
-  const role = resolveEffectiveUserRole({
-    fallbackRole: envRole,
-    storedRole: existingProfile?.role,
-  });
+  const role = normalizeUserRole(await getUserRoleKind(body.address.toLowerCase()));
 
   const token = await signSessionToken(
     {
@@ -290,13 +269,16 @@ export async function POST(req: Request) {
     secret,
   );
 
-  const updatedProfile = await getProfileRepository().upsertProfile({
+  const updatedProfile = {
     userId: body.address.toLowerCase(),
     displayName: existingProfile?.displayName ?? `${body.address.slice(0, 6)}...${body.address.slice(-4)}`,
     avatarUrl: existingProfile?.avatarUrl,
     role,
     updatedAt: new Date().toISOString(),
-  });
+  };
+  if (optionB.projectionStoreBackend !== "upstash") {
+    await getProfileRepository().upsertProfile(updatedProfile);
+  }
   await getEventStore().appendEvent(
     createDomainEvent({
       type: "profile_updated",
@@ -316,13 +298,6 @@ export async function POST(req: Request) {
   );
   await runProjectionBatch(200);
 
-  cookieStore.set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 6,
-  });
   cookieStore.delete(WALLET_NONCE_COOKIE_NAME);
 
   return Response.json({
@@ -330,6 +305,7 @@ export async function POST(req: Request) {
     data: {
       address: body.address.toLowerCase(),
       role,
+      accessToken: token,
     },
   });
 }

@@ -8,9 +8,10 @@ import { getLessonFromProjection } from "@/lib/projections/lesson-read-model";
 import { getContentRepository, getEventStore } from "@/lib/repositories";
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { inferAssetType } from "@/lib/server/publishing-model";
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { getEffectiveUserRole } from "@/lib/server/effective-role";
 import { jsonError, jsonOk } from "@/lib/server/http";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 import { ServiceError } from "@/lib/services/http-client";
 import { putShelbyBlob } from "@/lib/services/shelby-storage-client";
 import { isAptosAddress } from "@/lib/auth/wallet";
@@ -41,10 +42,12 @@ function isFormFile(value: FormDataEntryValue | null): value is File {
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) {
     return jsonError("UNAUTHORIZED", "Session is required", 401);
   }
+  const proof = await requireWalletActionProof(req, auth.userId);
+  if (!proof.ok) return proof.response;
   const effectiveRole = await getEffectiveUserRole({
     userId: auth.userId,
     fallbackRole: auth.role,

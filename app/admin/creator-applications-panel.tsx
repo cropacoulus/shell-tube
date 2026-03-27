@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import type { UserProfile } from "@/lib/contracts/profile";
+import { authFetch } from "@/lib/client/auth-fetch";
+import { buildWalletActionHeaders } from "@/lib/wallet/action-proof-client";
 
 type CreatorApplication = {
   id: string;
@@ -16,13 +19,31 @@ type CreatorApplication = {
 };
 
 export default function CreatorApplicationsPanel() {
+  const { account, signMessage } = useWallet();
   const [items, setItems] = useState<CreatorApplication[]>([]);
   const [creators, setCreators] = useState<UserProfile[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const currentAddress =
+    typeof account?.address === "string"
+      ? account.address
+      : account?.address?.toString?.() ?? null;
+
+  async function buildActionHeaders(method: "PATCH", pathname: string) {
+    if (!currentAddress || !account?.publicKey || !signMessage) {
+      throw new Error("Connect the same admin wallet first to approve this action.");
+    }
+    return buildWalletActionHeaders({
+      address: currentAddress,
+      publicKey: account.publicKey,
+      signMessage,
+      method,
+      pathname,
+    });
+  }
 
   const loadData = useCallback(async () => {
-    const res = await fetch("/api/v1/admin/creator-applications");
+    const res = await authFetch("/api/v1/admin/creator-applications");
     if (!res.ok) return;
     const body = (await res.json()) as {
       data: {
@@ -38,7 +59,7 @@ export default function CreatorApplicationsPanel() {
     let active = true;
 
     void (async () => {
-      const res = await fetch("/api/v1/admin/creator-applications");
+      const res = await authFetch("/api/v1/admin/creator-applications");
       if (!res.ok || !active) return;
       const body = (await res.json()) as {
         data: {
@@ -59,9 +80,12 @@ export default function CreatorApplicationsPanel() {
   async function reviewApplication(id: string, statusValue: "approved" | "rejected") {
     setError(null);
     setStatus(null);
-    const res = await fetch("/api/v1/admin/creator-applications", {
+    const res = await authFetch("/api/v1/admin/creator-applications", {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(await buildActionHeaders("PATCH", "/api/v1/admin/creator-applications")),
+      },
       body: JSON.stringify({ id, status: statusValue }),
     });
     if (!res.ok) {

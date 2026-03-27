@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import StickyNavbar from "@/app/_components/sticky-navbar";
 import StreamPlayer from "@/app/watch/[titleId]/stream-player";
+import { DEFAULT_REGION } from "@/lib/auth/constants";
 import { getLessonDetailFromProjection } from "@/lib/projections/lesson-detail-read-model";
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
-import { getAuthContextFromHeaders } from "@/lib/server/auth";
 import { getCourseById, getLessonById } from "@/lib/server/course-flow";
 
 type PageProps = {
@@ -13,9 +13,6 @@ type PageProps = {
 };
 
 export default async function LessonPage({ params }: PageProps) {
-  const auth = await getAuthContextFromHeaders();
-  if (!auth) redirect("/signin");
-
   const { lessonId } = await params;
   const optionB = createOptionBConfig();
   let lesson = await getLessonById(lessonId);
@@ -46,7 +43,7 @@ export default async function LessonPage({ params }: PageProps) {
           <p className="mt-3 max-w-3xl text-sm leading-7 text-white/72 md:text-base">{lesson.description}</p>
         </section>
         <div className="app-panel rounded-[2rem] p-3 md:p-4">
-          <StreamPlayer titleId={lesson.id} region={auth.region} />
+          <StreamPlayer titleId={lesson.id} region={DEFAULT_REGION} />
         </div>
       </main>
     </div>

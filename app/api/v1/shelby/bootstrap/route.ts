@@ -8,7 +8,7 @@ import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { canBootstrapPlaybackSession } from "@/lib/server/playback-session-guard";
 import { bootstrapShelby } from "@/lib/services/shelby-coordinator-client";
 import { ServiceError } from "@/lib/services/http-client";
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 
 function isValidRequest(body: unknown): body is ShelbyBootstrapRequest {
   if (!body || typeof body !== "object") return false;
@@ -24,7 +24,7 @@ function isValidRequest(body: unknown): body is ShelbyBootstrapRequest {
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) {
     return jsonError("UNAUTHORIZED", "Session is required", 401);
   }

@@ -1,4 +1,4 @@
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { getProfileFromProjection } from "@/lib/projections/profile-read-model";
 import { getProfileRepository } from "@/lib/repositories";
@@ -8,6 +8,7 @@ import { createDomainEvent } from "@/lib/events/event-factory";
 import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
 import { getEventStore } from "@/lib/repositories";
 import { runProjectionBatch } from "@/lib/jobs/projection-runner";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 type ProfileUpdateRequest = {
   displayName?: string;
@@ -15,9 +16,8 @@ type ProfileUpdateRequest = {
 };
 
 export async function GET(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
-  const profileRepository = getProfileRepository();
   const optionB = createOptionBConfig();
   const effectiveRole = await getEffectiveUserRole({
     userId: auth.userId,
@@ -26,14 +26,17 @@ export async function GET(req: Request) {
 
   const existing = optionB.projectionStoreBackend === "upstash"
     ? await getProfileFromProjection(auth.userId)
-    : await profileRepository.getProfile(auth.userId);
+    : await getProfileRepository().getProfile(auth.userId);
   if (!existing) {
-    const created = await profileRepository.upsertProfile({
+    const created = {
       userId: auth.userId,
       displayName: `${auth.userId.slice(0, 6)}...${auth.userId.slice(-4)}`,
       role: effectiveRole,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    if (optionB.projectionStoreBackend !== "upstash") {
+      await getProfileRepository().upsertProfile(created);
+    }
     await getEventStore().appendEvent(
       createDomainEvent({
         type: "profile_updated",
@@ -50,13 +53,17 @@ export async function GET(req: Request) {
     await runProjectionBatch(200);
     return jsonOk(created);
   }
-  return jsonOk(existing);
+  return jsonOk({
+    ...existing,
+    role: effectiveRole,
+  });
 }
 
 export async function PUT(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
-  const profileRepository = getProfileRepository();
+  const proof = await requireWalletActionProof(req, auth.userId);
+  if (!proof.ok) return proof.response;
   const optionB = createOptionBConfig();
   const effectiveRole = await getEffectiveUserRole({
     userId: auth.userId,
@@ -70,14 +77,17 @@ export async function PUT(req: Request) {
 
   const existing = optionB.projectionStoreBackend === "upstash"
     ? await getProfileFromProjection(auth.userId)
-    : await profileRepository.getProfile(auth.userId);
-  const updated = await profileRepository.upsertProfile({
+    : await getProfileRepository().getProfile(auth.userId);
+  const updated = {
     userId: auth.userId,
     displayName: body.displayName ?? existing?.displayName ?? auth.userId,
     avatarUrl: body.avatarUrl ?? existing?.avatarUrl,
-    role: existing?.role ?? effectiveRole,
+    role: effectiveRole,
     updatedAt: new Date().toISOString(),
-  });
+  };
+  if (optionB.projectionStoreBackend !== "upstash") {
+    await getProfileRepository().upsertProfile(updated);
+  }
   await getEventStore().appendEvent(
     createDomainEvent({
       type: "profile_updated",

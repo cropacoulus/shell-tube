@@ -1,4 +1,4 @@
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { getProfileFromProjection } from "@/lib/projections/profile-read-model";
 import { getEventStore, getProfileRepository } from "@/lib/repositories";
@@ -9,6 +9,7 @@ import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
 import { runProjectionBatch } from "@/lib/jobs/projection-runner";
 import { ServiceError } from "@/lib/services/http-client";
 import { getInternalBlobReadPath, putShelbyBlob } from "@/lib/services/shelby-storage-client";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 function extensionFromType(contentType: string) {
   if (contentType === "image/png") return "png";
@@ -30,9 +31,10 @@ function mapAvatarUploadError(error: ServiceError, userId: string) {
 }
 
 export async function POST(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
-  const profileRepository = getProfileRepository();
+  const proof = await requireWalletActionProof(req, auth.userId);
+  if (!proof.ok) return proof.response;
   const optionB = createOptionBConfig();
   const effectiveRole = await getEffectiveUserRole({
     userId: auth.userId,
@@ -62,14 +64,17 @@ export async function POST(req: Request) {
 
     const existing = optionB.projectionStoreBackend === "upstash"
       ? await getProfileFromProjection(auth.userId)
-      : await profileRepository.getProfile(auth.userId);
-    const updatedProfile = await profileRepository.upsertProfile({
+      : await getProfileRepository().getProfile(auth.userId);
+    const updatedProfile = {
       userId: auth.userId,
       displayName: existing?.displayName ?? `${auth.userId.slice(0, 6)}...${auth.userId.slice(-4)}`,
       avatarUrl: getInternalBlobReadPath(uploaded.blobKey),
-      role: existing?.role ?? effectiveRole,
+      role: effectiveRole,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    if (optionB.projectionStoreBackend !== "upstash") {
+      await getProfileRepository().upsertProfile(updatedProfile);
+    }
     await getEventStore().appendEvent(
       createDomainEvent({
         type: "profile_updated",

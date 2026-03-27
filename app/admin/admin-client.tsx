@@ -10,7 +10,9 @@ import {
   ShelbyBlobClient,
 } from "@shelby-protocol/sdk/browser";
 import { buildAdminContentItem, type AdminContentItem } from "@/lib/server/admin-content-model";
+import { authFetch } from "@/lib/client/auth-fetch";
 import { buildTitleBlobName } from "@/lib/storage/blob-path";
+import { buildWalletActionHeaders } from "@/lib/wallet/action-proof-client";
 import { resolveAppNetwork } from "@/lib/wallet/network";
 
 type Category = {
@@ -95,7 +97,7 @@ function normalizeTitleKey(value: string) {
 }
 
 export default function AdminClient() {
-  const { account, connected, signAndSubmitTransaction } = useWallet();
+  const { account, connected, signAndSubmitTransaction, signMessage } = useWallet();
   const [categories, setCategories] = useState<Category[]>([]);
   const [courses, setCourses] = useState<CourseRecord[]>([]);
   const [lessons, setLessons] = useState<LessonRecord[]>([]);
@@ -120,11 +122,24 @@ export default function AdminClient() {
       ? account.address
       : account?.address?.toString?.() ?? null;
 
+  async function buildActionHeaders(method: "POST" | "PATCH" | "DELETE", pathname: string) {
+    if (!currentAddress || !account?.publicKey || !signMessage) {
+      throw new Error("Connect the same admin wallet first to approve this action.");
+    }
+    return buildWalletActionHeaders({
+      address: currentAddress,
+      publicKey: account.publicKey,
+      signMessage,
+      method,
+      pathname,
+    });
+  }
+
   async function loadData() {
     const [catRes, courseRes, lessonRes] = await Promise.all([
-      fetch("/api/v1/admin/categories"),
-      fetch("/api/v1/admin/courses"),
-      fetch("/api/v1/admin/lessons"),
+      authFetch("/api/v1/admin/categories"),
+      authFetch("/api/v1/admin/courses"),
+      authFetch("/api/v1/admin/lessons"),
     ]);
     if (catRes.ok) {
       const body = (await catRes.json()) as { data: Category[] };
@@ -146,9 +161,9 @@ export default function AdminClient() {
 
   async function createCategory() {
     setError(null);
-    const res = await fetch("/api/v1/admin/categories", {
+    const res = await authFetch("/api/v1/admin/categories", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(await buildActionHeaders("POST", "/api/v1/admin/categories")) },
       body: JSON.stringify({ name: catName, description: catDesc }),
     });
     if (!res.ok) {
@@ -163,9 +178,9 @@ export default function AdminClient() {
 
   async function patchCategory(input: { id: string; name: string; description?: string }) {
     setError(null);
-    const res = await fetch("/api/v1/admin/categories", {
+    const res = await authFetch("/api/v1/admin/categories", {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(await buildActionHeaders("PATCH", "/api/v1/admin/categories")) },
       body: JSON.stringify(input),
     });
     if (!res.ok) {
@@ -199,9 +214,9 @@ export default function AdminClient() {
     }
 
     const [courseRes, lessonRes] = await Promise.all([
-      fetch("/api/v1/admin/courses", {
+      authFetch("/api/v1/admin/courses", {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(await buildActionHeaders("PATCH", "/api/v1/admin/courses")) },
         body: JSON.stringify({
           id: input.courseId,
           creatorProfileId: input.creatorProfileId,
@@ -214,9 +229,9 @@ export default function AdminClient() {
           publishStatus: input.publishStatus,
         }),
       }),
-      fetch("/api/v1/admin/lessons", {
+      authFetch("/api/v1/admin/lessons", {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(await buildActionHeaders("PATCH", "/api/v1/admin/lessons")) },
         body: JSON.stringify({
           id: input.lessonId,
           title: `${input.title} • Main Lesson`,
@@ -249,9 +264,9 @@ export default function AdminClient() {
       return false;
     }
 
-    const courseRes = await fetch("/api/v1/admin/courses", {
+    const courseRes = await authFetch("/api/v1/admin/courses", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(await buildActionHeaders("POST", "/api/v1/admin/courses")) },
       body: JSON.stringify({
         title: payload.title,
         synopsis: payload.synopsis || "",
@@ -269,9 +284,9 @@ export default function AdminClient() {
     }
     const courseBody = (await courseRes.json()) as { data: CourseRecord };
 
-    const lessonRes = await fetch("/api/v1/admin/lessons", {
+    const lessonRes = await authFetch("/api/v1/admin/lessons", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(await buildActionHeaders("POST", "/api/v1/admin/lessons")) },
       body: JSON.stringify({
         courseId: courseBody.data.id,
         title: `${payload.title} • Main Lesson`,
@@ -297,9 +312,9 @@ export default function AdminClient() {
 
   async function deleteCategoryById(id: string) {
     setError(null);
-    const res = await fetch("/api/v1/admin/categories", {
+    const res = await authFetch("/api/v1/admin/categories", {
       method: "DELETE",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(await buildActionHeaders("DELETE", "/api/v1/admin/categories")) },
       body: JSON.stringify({ id }),
     });
     if (!res.ok) {
@@ -314,9 +329,9 @@ export default function AdminClient() {
 
   async function deleteVideoById(id: string) {
     setError(null);
-    const res = await fetch("/api/v1/admin/courses", {
+    const res = await authFetch("/api/v1/admin/courses", {
       method: "DELETE",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(await buildActionHeaders("DELETE", "/api/v1/admin/courses")) },
       body: JSON.stringify({ id }),
     });
     if (!res.ok) {
@@ -411,8 +426,9 @@ export default function AdminClient() {
         file.type || (isManifestFile(file.name) ? "application/vnd.apple.mpegurl" : "video/mp4"),
       );
 
-      const res = await fetch("/api/v1/storage/ingest", {
+      const res = await authFetch("/api/v1/storage/ingest", {
         method: "POST",
+        headers: await buildActionHeaders("POST", "/api/v1/storage/ingest"),
         body: form,
       });
 

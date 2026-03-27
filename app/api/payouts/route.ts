@@ -1,6 +1,7 @@
-import { getAuthContextFromRequest } from "@/lib/server/auth";
+import { requireAdmin } from "@/lib/blockchain/role-registry";
+import { getAuthContextFromRequestOrBearer } from "@/lib/server/auth";
 import { jsonError, jsonOk } from "@/lib/server/http";
-import { canModeratePlatform, canViewCreatorAnalytics } from "@/lib/auth/capabilities";
+import { canViewCreatorAnalytics } from "@/lib/auth/capabilities";
 import { createDomainEvent } from "@/lib/events/event-factory";
 import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
 import { runProjectionBatch } from "@/lib/jobs/projection-runner";
@@ -12,9 +13,10 @@ import { getEventStore, getRevenueRepository } from "@/lib/repositories";
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
 import { getEffectiveUserRole } from "@/lib/server/effective-role";
 import { syncCreatorRevenueLedger } from "@/lib/server/creator-revenue-flow";
+import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 export async function GET(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
   const effectiveRole = await getEffectiveUserRole({
     userId: auth.userId,
@@ -53,11 +55,15 @@ function isValidPatch(body: unknown): body is PayoutStatusPatchRequest {
 }
 
 export async function PATCH(req: Request) {
-  const auth = getAuthContextFromRequest(req);
+  const auth = await getAuthContextFromRequestOrBearer(req);
   if (!auth) return jsonError("UNAUTHORIZED", "Session is required", 401);
-  if (!canModeratePlatform(auth.role)) {
+  try {
+    await requireAdmin(auth.userId);
+  } catch {
     return jsonError("FORBIDDEN", "Admin access required", 403);
   }
+  const proof = await requireWalletActionProof(req, auth.userId);
+  if (!proof.ok) return proof.response;
 
   const body = (await req.json().catch(() => null)) as unknown;
   if (!isValidPatch(body)) {
