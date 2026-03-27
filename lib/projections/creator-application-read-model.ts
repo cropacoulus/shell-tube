@@ -1,5 +1,6 @@
 import type { UserProfile } from "@/lib/contracts/profile";
 import { createDefaultProjectionStore } from "@/lib/projection-store";
+import type { OnChainCreatorApplicationStatus } from "@/lib/blockchain/role-registry";
 
 const CREATOR_APPLICATIONS_KEY = "stream:projection:creator-application:all";
 const CREATOR_APPLICATIONS_PENDING_KEY = "stream:projection:creator-application:index:pending";
@@ -16,6 +17,50 @@ type CreatorApplicationProjectionRecord = {
   updatedAt: string;
 };
 
+export type CreatorApplicationReadRecord = {
+  id: string;
+  userId: string;
+  displayName: string;
+  pitch: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  updatedAt: string;
+  reviewedByUserId?: string;
+  reviewedAt?: string;
+};
+
+function toReadRecord(item: CreatorApplicationProjectionRecord): CreatorApplicationReadRecord {
+  return {
+    id: item.applicationId,
+    userId: item.userId,
+    displayName: item.displayName ?? `${item.userId.slice(0, 6)}...${item.userId.slice(-4)}`,
+    pitch: item.pitch ?? "",
+    status: item.status,
+    createdAt: item.updatedAt,
+    updatedAt: item.updatedAt,
+    reviewedByUserId: item.reviewedByUserId,
+    reviewedAt: item.reviewedAt,
+  };
+}
+
+export function buildOnChainCreatorApplicationRecord(params: {
+  userId: string;
+  displayName?: string;
+  status: OnChainCreatorApplicationStatus;
+}): CreatorApplicationReadRecord | null {
+  if (params.status === "none") return null;
+  const timestamp = new Date(0).toISOString();
+  return {
+    id: `onchain_creator_app_${params.userId.toLowerCase()}`,
+    userId: params.userId,
+    displayName: params.displayName ?? `${params.userId.slice(0, 6)}...${params.userId.slice(-4)}`,
+    pitch: "",
+    status: params.status,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
 export async function getCreatorApplicationProjectionSnapshot() {
   const projectionStore = createDefaultProjectionStore();
   const [allApplications, pendingIds, creatorProfiles] = await Promise.all([
@@ -28,17 +73,7 @@ export async function getCreatorApplicationProjectionSnapshot() {
   const pendingApplications = (pendingIds ?? [])
     .map((id) => applicationMap[id])
     .filter((item): item is CreatorApplicationProjectionRecord => Boolean(item))
-    .map((item) => ({
-      id: item.applicationId,
-      userId: item.userId,
-      displayName: item.displayName ?? `${item.userId.slice(0, 6)}...${item.userId.slice(-4)}`,
-      pitch: item.pitch ?? "",
-      status: item.status,
-      createdAt: item.updatedAt,
-      updatedAt: item.updatedAt,
-      reviewedByUserId: item.reviewedByUserId,
-      reviewedAt: item.reviewedAt,
-    }));
+    .map(toReadRecord);
 
   const creators = Object.values(creatorProfiles ?? {}).sort((left, right) =>
     right.updatedAt.localeCompare(left.updatedAt),
@@ -58,17 +93,7 @@ export async function listCreatorApplicationsForUserFromProjection(userId: strin
   return Object.values(allApplications)
     .filter((item) => item.userId === userId)
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-    .map((item) => ({
-      id: item.applicationId,
-      userId: item.userId,
-      displayName: item.displayName ?? `${item.userId.slice(0, 6)}...${item.userId.slice(-4)}`,
-      pitch: item.pitch ?? "",
-      status: item.status,
-      createdAt: item.updatedAt,
-      updatedAt: item.updatedAt,
-      reviewedByUserId: item.reviewedByUserId,
-      reviewedAt: item.reviewedAt,
-    }));
+    .map(toReadRecord);
 }
 
 export async function getLatestCreatorApplicationForUserFromProjection(userId: string) {
@@ -82,18 +107,7 @@ export async function getCreatorApplicationByIdFromProjection(applicationId: str
     (await projectionStore.getJson<Record<string, CreatorApplicationProjectionRecord>>(CREATOR_APPLICATIONS_KEY)) ?? {};
   const item = allApplications[applicationId];
   if (!item) return null;
-
-  return {
-    id: item.applicationId,
-    userId: item.userId,
-    displayName: item.displayName ?? `${item.userId.slice(0, 6)}...${item.userId.slice(-4)}`,
-    pitch: item.pitch ?? "",
-    status: item.status,
-    createdAt: item.updatedAt,
-    updatedAt: item.updatedAt,
-    reviewedByUserId: item.reviewedByUserId,
-    reviewedAt: item.reviewedAt,
-  };
+  return toReadRecord(item);
 }
 
 export async function isProjectedCreator(userId: string) {

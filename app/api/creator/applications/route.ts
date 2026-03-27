@@ -1,8 +1,9 @@
+import { getCreatorApplicationStatus } from "@/lib/blockchain/role-registry";
 import { createDomainEvent } from "@/lib/events/event-factory";
 import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
 import { runProjectionBatch } from "@/lib/jobs/projection-runner";
-import { getCreatorApplicationStatus } from "@/lib/blockchain/role-registry";
 import {
+  buildOnChainCreatorApplicationRecord,
   getLatestCreatorApplicationForUserFromProjection,
   listCreatorApplicationsForUserFromProjection,
 } from "@/lib/projections/creator-application-read-model";
@@ -32,7 +33,18 @@ export async function GET(req: Request) {
   const optionB = createOptionBConfig();
   if (optionB.projectionStoreBackend === "upstash") {
     const applications = await listCreatorApplicationsForUserFromProjection(auth.userId);
-    return jsonOk(applications);
+    if (applications.length > 0) return jsonOk(applications);
+
+    const [onChainStatus, profile] = await Promise.all([
+      getCreatorApplicationStatus(auth.userId),
+      getProfileFromProjection(auth.userId),
+    ]);
+    const onChainRecord = buildOnChainCreatorApplicationRecord({
+      userId: auth.userId,
+      displayName: profile?.displayName,
+      status: onChainStatus,
+    });
+    return jsonOk(onChainRecord ? [onChainRecord] : []);
   }
 
   const applications = await getCreatorApplicationRepository().listCreatorApplicationsByUser(auth.userId);

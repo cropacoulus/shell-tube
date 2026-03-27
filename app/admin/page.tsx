@@ -3,7 +3,6 @@ import { SectionSubnav } from "@/app/_components/section-subnav";
 import StickyNavbar from "@/app/_components/sticky-navbar";
 import AdminClient from "@/app/admin/admin-client";
 import CreatorApplicationsPanel from "@/app/admin/creator-applications-panel";
-import { canModeratePlatform } from "@/lib/auth/capabilities";
 
 export default function AdminPage() {
   return (
@@ -11,33 +10,31 @@ export default function AdminPage() {
       <StickyNavbar />
       <main className="mx-auto max-w-7xl space-y-6 pt-6">
         <ClientAuthGate
-          allow={(profile) => canModeratePlatform(profile.role)}
+          allowedRoles={["admin"]}
           deniedTitle="Admin access required"
           deniedCopy="This wallet does not currently have admin privileges."
         >
-          {() => (
-            <>
-              <section className="app-panel rounded-[2rem] p-6 md:p-8">
-                <p className="app-kicker">Platform operations</p>
-                <h1 className="mt-3 text-3xl font-semibold md:text-5xl">Moderation, catalog control, and creator approvals.</h1>
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-white/68 md:text-base">
-                  The admin surface stays intentionally separate from the creator-facing product, but it should still share the same visual language and clarity.
-                </p>
-              </section>
-              <SectionSubnav
-                items={[
-                  { href: "/admin#catalog", label: "Catalog", match: "hash" },
-                  { href: "/admin#creator-applications", label: "Creator Applications", match: "hash" },
-                ]}
-              />
-              <div id="catalog" className="scroll-mt-28">
-                <AdminClient />
-              </div>
-              <div id="creator-applications" className="scroll-mt-28">
-                <CreatorApplicationsPanel />
-              </div>
-            </>
-          )}
+          <>
+            <section className="app-panel rounded-[2rem] p-6 md:p-8">
+              <p className="app-kicker">Platform operations</p>
+              <h1 className="mt-3 text-3xl font-semibold md:text-5xl">Moderation, catalog control, and creator approvals.</h1>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-white/68 md:text-base">
+                The admin surface stays intentionally separate from the creator-facing product, but it should still share the same visual language and clarity.
+              </p>
+            </section>
+            <SectionSubnav
+              items={[
+                { href: "/admin#catalog", label: "Catalog", match: "hash" },
+                { href: "/admin#creator-applications", label: "Creator Applications", match: "hash" },
+              ]}
+            />
+            <div id="catalog" className="scroll-mt-28">
+              <AdminClient />
+            </div>
+            <div id="creator-applications" className="scroll-mt-28">
+              <CreatorApplicationsPanel />
+            </div>
+          </>
         </ClientAuthGate>
       </main>
     </div>

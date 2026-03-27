@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { authFetch } from "@/lib/client/auth-fetch";
+import type { UserRole } from "@/lib/contracts/profile";
 
 export type AuthenticatedProfile = {
   userId: string;
@@ -85,14 +86,14 @@ export function useAuthenticatedProfile() {
 
 export function ClientAuthGate({
   children,
-  allow,
+  allowedRoles,
   fallbackTitle = "Wallet sign-in required",
   fallbackCopy = "Connect your wallet and sign in to continue.",
   deniedTitle = "Access restricted",
   deniedCopy = "This wallet does not have permission to open this surface.",
 }: {
-  children: (profile: AuthenticatedProfile) => ReactNode;
-  allow?: (profile: AuthenticatedProfile) => boolean;
+  children: ReactNode;
+  allowedRoles?: UserRole[];
   fallbackTitle?: string;
   fallbackCopy?: string;
   deniedTitle?: string;
@@ -137,7 +138,7 @@ export function ClientAuthGate({
     );
   }
 
-  if (allow && !allow(profile)) {
+  if (allowedRoles && !allowedRoles.includes(profile.role)) {
     return (
       <section className="app-panel rounded-[2rem] p-8">
         <p className="app-kicker">Restricted surface</p>
@@ -147,5 +148,5 @@ export function ClientAuthGate({
     );
   }
 
-  return <>{children(profile)}</>;
+  return <>{children}</>;
 }
