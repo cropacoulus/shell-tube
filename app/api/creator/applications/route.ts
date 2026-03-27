@@ -1,6 +1,7 @@
 import { createDomainEvent } from "@/lib/events/event-factory";
 import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
 import { runProjectionBatch } from "@/lib/jobs/projection-runner";
+import { getCreatorApplicationStatus } from "@/lib/blockchain/role-registry";
 import {
   getLatestCreatorApplicationForUserFromProjection,
   listCreatorApplicationsForUserFromProjection,
@@ -15,6 +16,7 @@ import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 
 type CreatorApplicationCreateRequest = {
   pitch: string;
+  onChainTxHash?: string;
 };
 
 function isValid(body: unknown): body is CreatorApplicationCreateRequest {
@@ -71,6 +73,19 @@ export async function POST(req: Request) {
     );
   }
 
+  const onChainStatus = await getCreatorApplicationStatus(auth.userId);
+  if (onChainStatus !== "pending") {
+    return jsonError(
+      "INVALID_REQUEST",
+      onChainStatus === "approved"
+        ? "Creator access is already approved on-chain"
+        : onChainStatus === "rejected"
+          ? "Your last on-chain creator application was rejected. Submit a new on-chain request first."
+          : "Submit the creator application on-chain first from your wallet.",
+      409,
+    );
+  }
+
   const profile = optionB.projectionStoreBackend === "upstash"
     ? await getProfileFromProjection(auth.userId)
     : await getProfileRepository().getProfile(auth.userId);
@@ -96,6 +111,7 @@ export async function POST(req: Request) {
         displayName: created.displayName,
         pitch: created.pitch,
         status: created.status,
+        onChainTxHash: body.onChainTxHash,
         createdAt: created.createdAt,
         updatedAt: created.updatedAt,
       },

@@ -27,3 +27,10 @@
 - Safe default is `student` when no role exists on-chain.
 - Cache TTL is 60 seconds, but Aptos remains authoritative.
 - Event emission from `RoleRegistry::set_role` allows indexers and analytics workers to sync later.
+- Creator applications can also be managed on-chain:
+  - `CreatorApplications::initialize`
+  - `CreatorApplications::submit`
+  - `CreatorApplications::review`
+  - `CreatorApplications::status`
+- Admin review supports both approval and rejection on-chain. Approval upgrades the target wallet to
+  `creator = true`; rejection leaves roles unchanged and stores the rejected application state.

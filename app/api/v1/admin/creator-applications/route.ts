@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/blockchain/role-registry";
+import { getCreatorApplicationStatus } from "@/lib/blockchain/role-registry";
 import type { DomainEvent } from "@/lib/events/contracts";
 import { createDomainEvent } from "@/lib/events/event-factory";
 import { buildEventIdempotencyKey } from "@/lib/events/idempotency";
@@ -20,6 +21,7 @@ import { requireWalletActionProof } from "@/lib/server/wallet-action-auth";
 type CreatorApplicationPatchRequest = {
   id: string;
   status: "approved" | "rejected";
+  onChainTxHash?: string;
 };
 
 async function ensureAdmin(req: Request) {
@@ -100,6 +102,16 @@ export async function PATCH(req: Request) {
       });
   if (!application) return jsonError("NOT_FOUND", "Creator application not found", 404);
 
+  const onChainStatus = await getCreatorApplicationStatus(application.userId);
+  const expectedOnChainStatus = body.status === "approved" ? "approved" : "rejected";
+  if (onChainStatus !== expectedOnChainStatus) {
+    return jsonError(
+      "CONFLICT",
+      `On-chain creator application status is ${onChainStatus}. Complete the on-chain ${body.status} transaction first.`,
+      409,
+    );
+  }
+
   const events: DomainEvent[] = [
     createDomainEvent({
       type: body.status === "approved" ? "creator_application_approved" : "creator_application_rejected",
@@ -117,6 +129,7 @@ export async function PATCH(req: Request) {
         reviewedByUserId: application.reviewedByUserId,
         reviewedAt: application.reviewedAt,
         updatedAt: application.updatedAt,
+        onChainTxHash: body.onChainTxHash,
       },
     }),
   ];

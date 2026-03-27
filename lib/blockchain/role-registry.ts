@@ -10,6 +10,12 @@ export type OnChainUserRole = {
   creator: boolean;
 };
 
+export type OnChainCreatorApplicationStatus =
+  | "none"
+  | "pending"
+  | "approved"
+  | "rejected";
+
 function getRoleRegistryModuleAddress() {
   const configured =
     process.env.APTOS_ROLE_REGISTRY_ADDRESS ||
@@ -65,6 +71,33 @@ async function runBooleanView(functionName: string, address: string) {
   return raw === true || raw === "true";
 }
 
+async function runNumericView(functionName: string, address: string) {
+  const aptos = getAptosClient();
+  const payload = {
+    function: `${getRoleRegistryModuleAddress()}::CreatorApplications::${functionName}` as `${string}::${string}::${string}`,
+    functionArguments: [address.toLowerCase()],
+    typeArguments: [],
+  };
+  const result = await aptos.view({ payload });
+  const raw = Array.isArray(result) ? result[0] : result;
+  if (typeof raw === "number") return raw;
+  if (typeof raw === "string") return Number.parseInt(raw, 10);
+  return Number.NaN;
+}
+
+function mapCreatorApplicationStatus(code: number): OnChainCreatorApplicationStatus {
+  switch (code) {
+    case 1:
+      return "pending";
+    case 2:
+      return "approved";
+    case 3:
+      return "rejected";
+    default:
+      return "none";
+  }
+}
+
 export async function getUserRole(address: string): Promise<OnChainUserRole> {
   const normalized = address.toLowerCase();
   if (!isAptosAddress(normalized)) {
@@ -115,4 +148,14 @@ export async function requireCreator(address: string) {
     throw new Error("Unauthorized");
   }
   return role;
+}
+
+export async function getCreatorApplicationStatus(address: string): Promise<OnChainCreatorApplicationStatus> {
+  const normalized = address.toLowerCase();
+  if (!isAptosAddress(normalized)) {
+    throw new Error("Invalid Aptos address.");
+  }
+
+  const statusCode = await runNumericView("status", normalized);
+  return mapCreatorApplicationStatus(statusCode);
 }

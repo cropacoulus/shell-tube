@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Aptos, AptosConfig } from "@aptos-labs/ts-sdk";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import type { UserProfile } from "@/lib/contracts/profile";
 import { authFetch } from "@/lib/client/auth-fetch";
+import { buildReviewCreatorApplicationPayload } from "@/lib/blockchain/creator-applications";
 import { buildWalletActionHeaders } from "@/lib/wallet/action-proof-client";
+import { resolveAppNetwork } from "@/lib/wallet/network";
 
 type CreatorApplication = {
   id: string;
@@ -19,7 +22,7 @@ type CreatorApplication = {
 };
 
 export default function CreatorApplicationsPanel() {
-  const { account, signMessage } = useWallet();
+  const { account, connected, signMessage, signAndSubmitTransaction } = useWallet();
   const [items, setItems] = useState<CreatorApplication[]>([]);
   const [creators, setCreators] = useState<UserProfile[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -80,13 +83,40 @@ export default function CreatorApplicationsPanel() {
   async function reviewApplication(id: string, statusValue: "approved" | "rejected") {
     setError(null);
     setStatus(null);
+    const target = items.find((item) => item.id === id);
+    if (!target) {
+      setError("Creator application not found.");
+      return;
+    }
+    if (!connected || !currentAddress || !signAndSubmitTransaction) {
+      setError("Connect the same admin wallet first to review this creator application.");
+      return;
+    }
+
+    let onChainTxHash: string | undefined;
+    try {
+      setStatus(statusValue === "approved" ? "Approving creator application on-chain..." : "Rejecting creator application on-chain...");
+      const pendingTx = await signAndSubmitTransaction({
+        data: buildReviewCreatorApplicationPayload(target.userId, statusValue === "approved"),
+      });
+      const aptos = new Aptos(new AptosConfig({ network: resolveAppNetwork() }));
+      await aptos.waitForTransaction({
+        transactionHash: pendingTx.hash,
+      });
+      onChainTxHash = pendingTx.hash;
+    } catch (reviewError) {
+      setError(reviewError instanceof Error ? reviewError.message : "On-chain creator application review failed.");
+      setStatus(null);
+      return;
+    }
+
     const res = await authFetch("/api/v1/admin/creator-applications", {
       method: "PATCH",
       headers: {
         "content-type": "application/json",
         ...(await buildActionHeaders("PATCH", "/api/v1/admin/creator-applications")),
       },
-      body: JSON.stringify({ id, status: statusValue }),
+      body: JSON.stringify({ id, status: statusValue, onChainTxHash }),
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;

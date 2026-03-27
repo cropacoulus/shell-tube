@@ -11,6 +11,7 @@ import {
 } from "@shelby-protocol/sdk/browser";
 
 import { authFetch } from "@/lib/client/auth-fetch";
+import { buildSubmitCreatorApplicationPayload } from "@/lib/blockchain/creator-applications";
 import { buildWalletActionHeaders } from "@/lib/wallet/action-proof-client";
 import { resolveAppNetwork } from "@/lib/wallet/network";
 
@@ -102,8 +103,25 @@ export default function ProfileClient({ initialProfile = null }: ProfileClientPr
   async function submitCreatorApplication() {
     setError(null);
     setStatus("Submitting creator application...");
-    if (!currentAddress || !account?.publicKey || !signMessage) {
+    if (!currentAddress || !account?.publicKey || !signMessage || !signAndSubmitTransaction || !connected) {
       setError("Connect the same wallet first to approve this creator application.");
+      setStatus(null);
+      return;
+    }
+    let onChainTxHash: string | undefined;
+    try {
+      setStatus("Submitting creator application on-chain...");
+      const pendingTx = await signAndSubmitTransaction({
+        data: buildSubmitCreatorApplicationPayload(),
+      });
+      const aptos = new Aptos(new AptosConfig({ network: resolveAppNetwork() }));
+      await aptos.waitForTransaction({
+        transactionHash: pendingTx.hash,
+      });
+      onChainTxHash = pendingTx.hash;
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Unable to submit on-chain creator application.";
+      setError(message);
       setStatus(null);
       return;
     }
@@ -111,7 +129,7 @@ export default function ProfileClient({ initialProfile = null }: ProfileClientPr
     const res = await authFetch("/api/creator/applications", {
       method: "POST",
       headers: { "content-type": "application/json", ...proofHeaders },
-      body: JSON.stringify({ pitch: creatorPitch }),
+      body: JSON.stringify({ pitch: creatorPitch, onChainTxHash }),
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
