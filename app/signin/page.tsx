@@ -164,10 +164,12 @@ export default function SignInPage() {
       });
       const signatureSerialized = serializeAptosValue(signed.signature);
       const signatureRaw = normalizeWalletValue(signed.signature);
+      const signedPublicKeySerialized = serializeAptosValue((signed as { publicKey?: unknown }).publicKey);
+      const signedPublicKeyRaw = normalizeWalletValue((signed as { publicKey?: unknown }).publicKey);
       const publicKeySerialized = serializeAptosValue(accountRef.current?.publicKey);
       const publicKeyRaw = normalizeWalletValue(accountRef.current?.publicKey);
       const signedAddress = typeof signed.address === "string" ? signed.address.toLowerCase() : walletAccount.address.toLowerCase();
-      if ((!signatureSerialized && !signatureRaw) || (!publicKeySerialized && !publicKeyRaw) || !signed.fullMessage) {
+      if ((!signatureSerialized && !signatureRaw) || (!signedPublicKeySerialized && !signedPublicKeyRaw && !publicKeySerialized && !publicKeyRaw) || !signed.fullMessage) {
         throw new Error("Wallet signature payload is incomplete.");
       }
 
@@ -177,9 +179,9 @@ export default function SignInPage() {
         body: JSON.stringify({
           address: signedAddress,
           signature: signatureSerialized || signatureRaw,
-          publicKey: publicKeySerialized || publicKeyRaw,
+          publicKey: signedPublicKeySerialized || signedPublicKeyRaw || publicKeySerialized || publicKeyRaw,
           signatureCandidates: uniqueValues([signatureSerialized, signatureRaw]),
-          publicKeyCandidates: uniqueValues([publicKeySerialized, publicKeyRaw]),
+          publicKeyCandidates: uniqueValues([signedPublicKeySerialized, signedPublicKeyRaw, publicKeySerialized, publicKeyRaw]),
           message: challengeBody.data.message,
           fullMessage: signed.fullMessage,
           nonce: challengeBody.data.nonce,
