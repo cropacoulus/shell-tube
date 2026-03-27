@@ -20,7 +20,7 @@ export function buildWalletSignInMessage(params: {
 }) {
   const statement =
     process.env.WALLET_SIGNIN_STATEMENT ||
-    "Sign this message to authenticate with Shelby Stream.";
+    "Sign this message to authenticate with Verra.";
   const lines = [
     `${params.domain} wants you to sign in with your Aptos account:`,
     params.address,

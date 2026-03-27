@@ -11,7 +11,11 @@ import {
 } from "@shelby-protocol/sdk/browser";
 
 import type { AdminContentItem } from "@/lib/server/admin-content-model";
-import { validateCreatorContentCore } from "@/lib/creator/content-validation";
+import {
+  getCreatorContentFieldErrors,
+  type CreatorContentFieldErrors,
+  validateCreatorContentCore,
+} from "@/lib/creator/content-validation";
 import { buildTitleBlobName } from "@/lib/storage/blob-path";
 import { resolveAppNetwork } from "@/lib/wallet/network";
 
@@ -23,7 +27,6 @@ type Category = {
 type CreatorForm = {
   title: string;
   synopsis: string;
-  year: number;
   categoryId: string;
   heroImageUrl: string;
   cardImageUrl: string;
@@ -39,12 +42,11 @@ type ReleaseStage = "metadata" | "source-uploaded" | "processing" | "ready" | "l
 const emptyForm: CreatorForm = {
   title: "",
   synopsis: "",
-  year: new Date().getFullYear(),
   categoryId: "",
   heroImageUrl: "",
   cardImageUrl: "",
   durationMin: 30,
-  maturityRating: "13+",
+  maturityRating: "",
   manifestBlobKey: "",
   streamAssetId: "",
   publishStatus: "draft",
@@ -117,6 +119,7 @@ export default function CreatorUploadClient() {
   const [editingItem, setEditingItem] = useState<AdminContentItem | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<CreatorContentFieldErrors>({});
   const [uploading, setUploading] = useState(false);
   const [uploadStage, setUploadStage] = useState<string | null>(null);
 
@@ -170,10 +173,10 @@ export default function CreatorUploadClient() {
 
   const applyItemToEditor = (item: AdminContentItem) => {
     setEditingItem(item);
+    setFieldErrors({});
     setForm({
       title: item.title,
       synopsis: item.synopsis,
-      year: item.year,
       categoryId: item.categoryId,
       heroImageUrl: item.heroImageUrl,
       cardImageUrl: item.cardImageUrl,
@@ -202,7 +205,7 @@ export default function CreatorUploadClient() {
 
     try {
       if (!connected || !currentAddress || !signAndSubmitTransaction) {
-        throw new Error("Connect wallet first to register blob on Shelby L1.");
+        throw new Error("Connect wallet first to register the Verra media blob on L1.");
       }
 
       const blobName = buildTitleBlobName({
@@ -212,7 +215,7 @@ export default function CreatorUploadClient() {
       });
       const blobData = new Uint8Array(await input.file.arrayBuffer());
 
-      setStatus("Registering blob metadata on Shelby L1...");
+      setStatus("Registering Verra media blob on L1...");
       setUploadStage("Registering on-chain metadata...");
       const provider = await createDefaultErasureCodingProvider();
       const commitment = await generateCommitments(provider, blobData);
@@ -248,7 +251,7 @@ export default function CreatorUploadClient() {
         }
       }
 
-      setStatus("Uploading blob bytes to Shelby storage...");
+      setStatus("Uploading media to Verra storage...");
       setUploadStage("Uploading blob bytes...");
       const formData = new FormData();
       formData.set("titleId", editingItem.lessonId);
@@ -317,6 +320,8 @@ export default function CreatorUploadClient() {
   async function createDraft() {
     setError(null);
     setStatus(null);
+    const nextFieldErrors = getCreatorContentFieldErrors(form);
+    setFieldErrors(nextFieldErrors);
     const validationError = validateCreatorContentCore(form);
     if (validationError) {
       setError(validationError);
@@ -450,6 +455,7 @@ export default function CreatorUploadClient() {
 
   function resetEditor() {
     setEditingItem(null);
+    setFieldErrors({});
     setForm({
       ...emptyForm,
       categoryId: categories[0]?.id ?? "",
@@ -464,14 +470,25 @@ export default function CreatorUploadClient() {
     ? getReleaseNarrative(editingItem)
     : {
         title: "Create the shell first",
-        body: "A draft course gives the studio a stable lesson id, which the Shelby upload flow uses for source and manifest blobs.",
+        body: "A draft course gives the studio a stable lesson id, which the Verra media flow uses for source and manifest blobs.",
         nextStep: "Save the first draft to unlock media uploads.",
       };
+
+  function setFormValue<TKey extends keyof CreatorForm>(key: TKey, value: CreatorForm[TKey]) {
+    setForm((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => {
+      if (!current[key as keyof CreatorContentFieldErrors]) return current;
+      return {
+        ...current,
+        [key]: undefined,
+      };
+    });
+  }
 
   return (
     <div className="space-y-6">
       <section className="app-panel rounded-[2rem] p-6">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="app-kicker">{editingItem ? "Editing draft" : "New course draft"}</p>
             <h2 className="mt-2 text-2xl font-semibold">
@@ -479,7 +496,7 @@ export default function CreatorUploadClient() {
             </h2>
           </div>
           {editingItem ? (
-            <button type="button" onClick={resetEditor} className="app-secondary-button px-4 py-2 text-sm">
+            <button type="button" onClick={resetEditor} className="app-secondary-button w-full px-4 py-2 text-sm sm:w-auto">
               Clear editor
             </button>
           ) : null}
@@ -488,23 +505,74 @@ export default function CreatorUploadClient() {
         <p className="mt-3 max-w-3xl text-sm leading-7 text-white/65">
           Drafts are always private. You only publish from the draft list below, after the lesson has a watch-ready manifest.
         </p>
+        <p className="mt-2 text-xs uppercase tracking-[0.18em] text-white/45">Fields marked * are required to create a draft.</p>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Course title" className="form-shell text-sm" />
-          <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className="form-shell text-sm">
-            <option value="">Select category</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>{category.name}</option>
-            ))}
-          </select>
-          <input value={form.heroImageUrl} onChange={(event) => setForm({ ...form, heroImageUrl: event.target.value })} placeholder="Hero image URL" className="form-shell text-sm" />
-          <input value={form.cardImageUrl} onChange={(event) => setForm({ ...form, cardImageUrl: event.target.value })} placeholder="Card image URL" className="form-shell text-sm" />
-          <input type="number" value={form.year} onChange={(event) => setForm({ ...form, year: Number(event.target.value) })} placeholder="Release year" className="form-shell text-sm" />
-          <input type="number" value={form.durationMin} onChange={(event) => setForm({ ...form, durationMin: Number(event.target.value) })} placeholder="Lesson duration in minutes" className="form-shell text-sm" />
-          <input value={form.maturityRating} onChange={(event) => setForm({ ...form, maturityRating: event.target.value })} placeholder="Audience rating" className="form-shell text-sm" />
+          <label className="block text-sm">
+            Course title <span className="text-rose-300">*</span>
+            <input
+              value={form.title}
+              onChange={(event) => setFormValue("title", event.target.value)}
+              placeholder="Course title"
+              className="form-shell mt-2 text-sm"
+            />
+            {fieldErrors.title ? <span className="mt-2 block text-xs text-rose-300">{fieldErrors.title}</span> : null}
+          </label>
+          <label className="block text-sm">
+            Category <span className="text-rose-300">*</span>
+            <select
+              value={form.categoryId}
+              onChange={(event) => setFormValue("categoryId", event.target.value)}
+              className="form-shell mt-2 text-sm"
+            >
+              <option value="">Select category</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+            {fieldErrors.categoryId ? <span className="mt-2 block text-xs text-rose-300">{fieldErrors.categoryId}</span> : null}
+          </label>
+          <label className="block text-sm">
+            Hero image URL
+            <input
+              value={form.heroImageUrl}
+              onChange={(event) => setFormValue("heroImageUrl", event.target.value)}
+              placeholder="Hero image URL"
+              className="form-shell mt-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            Card image URL
+            <input
+              value={form.cardImageUrl}
+              onChange={(event) => setFormValue("cardImageUrl", event.target.value)}
+              placeholder="Card image URL"
+              className="form-shell mt-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            Lesson duration <span className="text-rose-300">*</span>
+            <input
+              type="number"
+              value={form.durationMin}
+              onChange={(event) => setFormValue("durationMin", Number(event.target.value))}
+              placeholder="Lesson duration in minutes"
+              className="form-shell mt-2 text-sm"
+            />
+            {fieldErrors.durationMin ? <span className="mt-2 block text-xs text-rose-300">{fieldErrors.durationMin}</span> : null}
+          </label>
         </div>
 
-        <textarea value={form.synopsis} onChange={(event) => setForm({ ...form, synopsis: event.target.value })} placeholder="Public synopsis" className="form-shell mt-3 min-h-32 text-sm" />
+        <label className="mt-3 block text-sm">
+          Public synopsis <span className="text-rose-300">*</span>
+          <textarea
+            value={form.synopsis}
+            onChange={(event) => setFormValue("synopsis", event.target.value)}
+            placeholder="Public synopsis"
+            className="form-shell mt-2 min-h-32 text-sm"
+          />
+          {fieldErrors.synopsis ? <span className="mt-2 block text-xs text-rose-300">{fieldErrors.synopsis}</span> : null}
+        </label>
 
         <div className="mt-5 rounded-[1.5rem] border border-dashed border-white/12 bg-black/20 p-5">
           <div className="flex flex-wrap items-center gap-2">
@@ -564,8 +632,8 @@ export default function CreatorUploadClient() {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void (editingItem ? updateDraft() : createDraft())} className="app-primary-button px-5 py-3 text-sm">
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <button type="button" onClick={() => void (editingItem ? updateDraft() : createDraft())} className="app-primary-button w-full px-5 py-3 text-sm sm:w-auto">
             {editingItem ? "Save changes" : "Create draft"}
           </button>
           {status ? <p className="text-sm text-emerald-300">{status}</p> : null}
@@ -574,7 +642,7 @@ export default function CreatorUploadClient() {
       </section>
 
       <section className="app-panel rounded-[2rem] p-6">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="app-kicker">Private workspace</p>
             <h2 className="mt-2 text-2xl font-semibold">Drafts</h2>
@@ -584,7 +652,7 @@ export default function CreatorUploadClient() {
         <div className="mt-4 space-y-3">
           {draftItems.length > 0 ? draftItems.map((item) => (
             <div key={item.id} className="rounded-[1.35rem] border border-white/10 bg-white/4 p-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-medium">{item.title}</p>
@@ -593,15 +661,15 @@ export default function CreatorUploadClient() {
                   <p className="mt-2 text-xs uppercase tracking-[0.18em] text-white/45">{item.categoryId}</p>
                   <p className="mt-2 text-sm leading-7 text-white/60">{getReleaseNarrative(item).nextStep}</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => beginEdit(item)} className="app-secondary-button px-3 py-2 text-xs">
+                <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
+                  <button type="button" onClick={() => beginEdit(item)} className="app-secondary-button w-full px-3 py-2 text-xs lg:w-auto">
                     Edit
                   </button>
                   {getReleaseStage(item) === "source-uploaded" ? (
                     <button
                       type="button"
                       onClick={() => void requestPackaging(item)}
-                      className="app-secondary-button px-3 py-2 text-xs"
+                      className="app-secondary-button w-full px-3 py-2 text-xs lg:w-auto"
                     >
                       Request packaging
                     </button>
@@ -611,11 +679,11 @@ export default function CreatorUploadClient() {
                     onClick={() => void togglePublish(item)}
                     disabled={!item.manifestBlobKey}
                     title={!item.manifestBlobKey ? "Attach an HLS manifest first." : "Publish this course"}
-                    className="app-primary-button px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-55"
+                    className="app-primary-button w-full px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-55 lg:w-auto"
                   >
                     Publish
                   </button>
-                  <button type="button" onClick={() => void deleteItem(item)} className="app-secondary-button px-3 py-2 text-xs">
+                  <button type="button" onClick={() => void deleteItem(item)} className="app-secondary-button w-full px-3 py-2 text-xs lg:w-auto">
                     Delete
                   </button>
                 </div>
@@ -628,7 +696,7 @@ export default function CreatorUploadClient() {
       </section>
 
       <section className="app-panel rounded-[2rem] p-6">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="app-kicker">Public catalog</p>
             <h2 className="mt-2 text-2xl font-semibold">Published</h2>
@@ -638,7 +706,7 @@ export default function CreatorUploadClient() {
         <div className="mt-4 space-y-3">
           {publishedItems.length > 0 ? publishedItems.map((item) => (
             <div key={item.id} className="rounded-[1.35rem] border border-white/10 bg-white/4 p-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-medium">{item.title}</p>
@@ -647,11 +715,11 @@ export default function CreatorUploadClient() {
                   <p className="mt-2 text-xs uppercase tracking-[0.18em] text-white/45">{item.categoryId}</p>
                   <p className="mt-2 text-sm leading-7 text-white/60">{getReleaseNarrative(item).nextStep}</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => beginEdit(item)} className="app-secondary-button px-3 py-2 text-xs">
+                <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
+                  <button type="button" onClick={() => beginEdit(item)} className="app-secondary-button w-full px-3 py-2 text-xs lg:w-auto">
                     Edit
                   </button>
-                  <button type="button" onClick={() => void togglePublish(item)} className="app-secondary-button px-3 py-2 text-xs">
+                  <button type="button" onClick={() => void togglePublish(item)} className="app-secondary-button w-full px-3 py-2 text-xs lg:w-auto">
                     Return to draft
                   </button>
                 </div>

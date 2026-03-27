@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { SectionSubnav } from "@/app/_components/section-subnav";
 import StickyNavbar from "@/app/_components/sticky-navbar";
 import { canViewCreatorAnalytics } from "@/lib/auth/capabilities";
 import { getAuthContextFromHeaders } from "@/lib/server/auth";
@@ -38,16 +39,23 @@ export default async function CreatorAnalyticsPage() {
           <p className="app-copy mt-3 max-w-3xl text-sm leading-7 md:text-base">
             This page is trimmed to the signals a creator actually needs: release volume, watch behavior, playback quality, and revenue movement.
           </p>
-          <div className="flex flex-wrap gap-2 pt-4">
-            <Link href="/creator/uploads" className="app-primary-button px-4 py-2 text-sm">
+          <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:flex-wrap">
+            <Link href="/creator/uploads" className="app-primary-button w-full px-4 py-2.5 text-sm sm:w-auto">
               Create course
             </Link>
-            <Link href="/creator/courses" className="app-secondary-button px-4 py-2 text-sm">
+            <Link href="/creator/courses" className="app-secondary-button w-full px-4 py-2.5 text-sm sm:w-auto">
               Open my courses
             </Link>
           </div>
         </header>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <SectionSubnav
+          items={[
+            { href: "/creator/uploads", label: "Studio" },
+            { href: "/creator/courses", label: "My Courses" },
+            { href: "/creator/analytics", label: "Analytics", match: "exact" },
+          ]}
+        />
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <div className="metric-card">
             <p className="text-xs uppercase tracking-[0.18em] text-white/45">Published courses</p>
             <p className="mt-1 text-2xl font-semibold">{analytics.publishedCourseCount}</p>
@@ -110,7 +118,7 @@ export default async function CreatorAnalyticsPage() {
           </div>
         </div>
         <section className="app-panel space-y-3 rounded-[2rem] p-6">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="app-kicker">Revenue ledger</p>
               <h2 className="mt-2 text-2xl font-semibold">Payout movement</h2>
@@ -119,8 +127,8 @@ export default async function CreatorAnalyticsPage() {
           </div>
           <div className="space-y-2">
             {revenue.payoutLedger.length > 0 ? revenue.payoutLedger.map((entry) => (
-              <div key={entry.id} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 md:grid-cols-[1.2fr_0.8fr_0.6fr_0.7fr]">
-                <div>
+              <div key={entry.id} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 sm:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.6fr_0.7fr]">
+                <div className="sm:col-span-2 xl:col-span-1">
                   <p className="font-medium">{entry.courseTitle ?? "Platform-wide"}</p>
                   <p className="mt-1 text-xs text-white/55">{entry.sourceType}</p>
                 </div>
@@ -145,7 +153,7 @@ export default async function CreatorAnalyticsPage() {
           </div>
         </section>
         <section className="app-panel space-y-3 rounded-[2rem] p-6">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="app-kicker">Audience detail</p>
               <h2 className="mt-2 text-2xl font-semibold">Lesson performance</h2>
@@ -156,8 +164,8 @@ export default async function CreatorAnalyticsPage() {
           </div>
           <div className="space-y-2">
             {analytics.lessons.map((lesson) => (
-              <div key={lesson.lessonId} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 md:grid-cols-[1.8fr_repeat(6,minmax(0,1fr))]">
-                <div>
+              <div key={lesson.lessonId} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 sm:grid-cols-2 xl:grid-cols-[1.8fr_repeat(6,minmax(0,1fr))]">
+                <div className="sm:col-span-2 xl:col-span-1">
                   <p className="font-medium">{lesson.title}</p>
                   <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/45">{lesson.publishStatus}</p>
                 </div>

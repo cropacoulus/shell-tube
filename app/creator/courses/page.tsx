@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { SectionSubnav } from "@/app/_components/section-subnav";
 import StickyNavbar from "@/app/_components/sticky-navbar";
 import { canPublishContent } from "@/lib/auth/capabilities";
 import { listCreatorOwnedCourseSummaries } from "@/lib/server/creator-content-flow";
@@ -32,6 +33,14 @@ export default async function CreatorCoursesPage() {
             This is the clean catalog view for your public and private releases. Open a course to inspect performance, or jump back into Studio to shape the next draft.
           </p>
         </header>
+
+        <SectionSubnav
+          items={[
+            { href: "/creator/uploads", label: "Studio" },
+            { href: "/creator/courses", label: "My Courses", match: "exact" },
+            { href: "/creator/analytics", label: "Analytics" },
+          ]}
+        />
 
         <div className="app-panel rounded-[2rem] p-6">
           <div className="mb-3 flex items-center justify-between">

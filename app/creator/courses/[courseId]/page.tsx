@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { SectionSubnav } from "@/app/_components/section-subnav";
 import StickyNavbar from "@/app/_components/sticky-navbar";
 import { canPublishContent } from "@/lib/auth/capabilities";
 import { getCreatorCourseAnalyticsSnapshot } from "@/lib/server/creator-analytics-flow";
@@ -73,6 +74,13 @@ export default async function CreatorCourseDetailPage({ params }: PageProps) {
         <Link href="/creator/courses" className="inline-block text-sm text-white/70 hover:text-white">
           Back to creator library
         </Link>
+        <SectionSubnav
+          items={[
+            { href: "/creator/uploads", label: "Studio" },
+            { href: "/creator/courses", label: "My Courses" },
+            { href: "/creator/analytics", label: "Analytics" },
+          ]}
+        />
         <section className="app-panel rounded-[2rem] p-6 md:p-8">
           <div className="flex flex-wrap items-center gap-2">
             <span className="status-pill">{course.category}</span>
@@ -81,7 +89,7 @@ export default async function CreatorCourseDetailPage({ params }: PageProps) {
           </div>
           <h1 className="mt-4 text-3xl font-semibold md:text-5xl">{course.title}</h1>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-white/72 md:text-base">{course.description}</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <div className="metric-card">
               <p className="text-xs uppercase tracking-[0.18em] text-white/45">Total lessons</p>
               <p className="mt-1 text-2xl font-semibold">{lessons.length}</p>
@@ -126,7 +134,7 @@ export default async function CreatorCourseDetailPage({ params }: PageProps) {
         </section>
 
         <section className="app-panel rounded-[2rem] p-6">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="app-kicker">Revenue view</p>
               <h2 className="mt-2 text-2xl font-semibold">Revenue ledger</h2>
@@ -135,7 +143,7 @@ export default async function CreatorCourseDetailPage({ params }: PageProps) {
           </div>
           <div className="space-y-2">
             {revenue.payoutLedger.length > 0 ? revenue.payoutLedger.map((entry) => (
-              <div key={entry.id} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 md:grid-cols-[1fr_0.8fr_0.8fr]">
+              <div key={entry.id} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 sm:grid-cols-2 xl:grid-cols-[1fr_0.8fr_0.8fr]">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-white/45">{entry.sourceType}</p>
                   <p className="mt-2 text-lg font-semibold">${entry.amountUsd.toFixed(2)}</p>
@@ -158,19 +166,19 @@ export default async function CreatorCourseDetailPage({ params }: PageProps) {
         </section>
 
         <section className="app-panel rounded-[2rem] p-6">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="app-kicker">Release breakdown</p>
               <h2 className="mt-2 text-2xl font-semibold">Lessons</h2>
             </div>
-            <Link href="/creator/uploads" className="app-primary-button px-4 py-2 text-sm">
+            <Link href="/creator/uploads" className="app-primary-button w-full px-4 py-2.5 text-sm sm:w-auto">
               Open studio
             </Link>
           </div>
           <div className="space-y-2">
             {lessons.map((lesson, index) => (
-              <div key={lesson.id} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 md:grid-cols-[1.5fr_repeat(4,minmax(0,1fr))]">
-                <div>
+              <div key={lesson.id} className="grid gap-3 rounded-[1.35rem] border border-white/10 bg-white/4 p-4 sm:grid-cols-2 xl:grid-cols-[1.5fr_repeat(4,minmax(0,1fr))]">
+                <div className="sm:col-span-2 xl:col-span-1">
                   <p className="text-xs uppercase tracking-[0.18em] text-white/45">Lesson {index + 1}</p>
                   <p className="font-medium">{lesson.title}</p>
                 </div>
@@ -190,7 +198,7 @@ export default async function CreatorCourseDetailPage({ params }: PageProps) {
                     {analytics.lessons.find((item) => item.lessonId === lesson.id)?.watchTimeMin ?? 0} min
                   </p>
                 </div>
-                <div className="flex items-center justify-between gap-3 md:justify-end">
+                <div className="flex items-center justify-between gap-3 sm:col-span-2 xl:col-span-1 xl:justify-end">
                   <div>
                     <p className="text-xs text-white/55">Completion</p>
                     <p className="mt-1 text-sm font-semibold">

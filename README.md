@@ -1,6 +1,6 @@
-# Stream P2P
+# Verra
 
-Creator-first video course platform architecture built around Next.js, Shelby Protocol storage, HLS playback, PostgreSQL metadata, and FFmpeg video processing.
+Creator-first video course platform architecture for Verra, built around Next.js, Shelby Protocol storage, HLS playback, PostgreSQL metadata, and FFmpeg video processing.
 
 ## Platform Focus
 - Educational video courses instead of mass entertainment streaming.

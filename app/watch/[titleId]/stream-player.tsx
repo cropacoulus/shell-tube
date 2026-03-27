@@ -388,7 +388,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
           maxPeers: 6,
         }),
       });
-      if (!response.ok) throw new Error("Shelby bootstrap failed");
+      if (!response.ok) throw new Error("Verra playback bootstrap failed");
       const body = (await response.json()) as { data: ShelbyBootstrapResponse };
       return body.data;
     }
@@ -434,7 +434,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
         playbackRef.current = playback;
 
         if (playback.featureFlags.shelbyEnabled) {
-          setStatus("Bootstrapping Shelby peers...");
+          setStatus("Bootstrapping Verra playback...");
           const bootstrap = await bootstrapShelby(playback.playbackSessionId);
           if (canceled) return;
           adapterRef.current = new ShelbyAdapter(bootstrap);
@@ -889,7 +889,7 @@ export default function StreamPlayer({ titleId, region }: StreamPlayerProps) {
         <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1">
           ABR: {abrKbps ? `${abrKbps} kbps` : "auto"}
         </span>
-        <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1">Shelby Hit Ratio: {peerHitRatio}%</span>
+        <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1">Peer Delivery Ratio: {peerHitRatio}%</span>
       </div>
       {fatalError ? <p className="text-sm text-red-300">{fatalError}</p> : null}
     </div>

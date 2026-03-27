@@ -39,7 +39,7 @@ export async function createPlaybackSession(
         throw new ServiceError(
           "playback",
           422,
-          "Lesson stream is not ready: upload asset to Shelby and save stream key first.",
+          "Lesson stream is not ready: upload the Verra media asset and save the stream key first.",
         );
       }
       if (process.env.SHELBY_RPC_URL) {

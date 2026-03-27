@@ -1,6 +1,6 @@
 # Architecture Option B - Final Stack
 
-Dokumen ini menetapkan stack final untuk Option B agar arsitektur **full web3 + event-first + Shelby-native** tidak lagi menggantung di level konsep.
+Dokumen ini menetapkan stack final untuk Option B agar arsitektur **Verra full web3 + event-first + Shelby-backed media** tidak lagi menggantung di level konsep.
 
 ## 1. Keputusan Final
 

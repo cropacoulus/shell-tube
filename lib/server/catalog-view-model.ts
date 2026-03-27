@@ -23,7 +23,7 @@ export const buildLocalTitleSummary = (
     year: course.year,
     maturityRating: lesson.maturityRating,
     durationMin: lesson.durationMin,
-    genres: ["Shelby Studio"],
+    genres: ["Verra Studio"],
     type: "movie",
     heroImageUrl: course.heroImageUrl,
     cardImageUrl: course.cardImageUrl,

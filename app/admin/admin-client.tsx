@@ -333,7 +333,7 @@ export default function AdminClient() {
     if (!payload.title.trim()) return "Course title is required.";
     if (!payload.synopsis.trim()) return "Course synopsis is required.";
     if (!payload.categoryId.trim()) return "Category is required.";
-    if (!payload.manifestBlobKey.trim()) return "Upload lesson stream to Shelby first.";
+    if (!payload.manifestBlobKey.trim()) return "Upload lesson stream to Verra first.";
     if (!payload.heroImageUrl.trim() || !payload.cardImageUrl.trim()) {
       return "Hero and card image URL are required.";
     }
@@ -347,7 +347,7 @@ export default function AdminClient() {
     setUploading(true);
     try {
       if (!connected || !currentAddress || !signAndSubmitTransaction) {
-        throw new Error("Connect wallet first to register blob on Shelby L1.");
+        throw new Error("Connect wallet first to register the Verra media blob on L1.");
       }
 
       const normalizedTitle = videoForm.title.toLowerCase().trim().replace(/\s+/g, "-");
@@ -364,7 +364,7 @@ export default function AdminClient() {
       });
       const blobData = new Uint8Array(await file.arrayBuffer());
 
-      setStatus("Registering blob metadata on Shelby L1...");
+      setStatus("Registering Verra media blob on L1...");
       setUploadStage("Registering on-chain metadata...");
       const provider = await createDefaultErasureCodingProvider();
       const commitment = await generateCommitments(provider, blobData);
@@ -400,7 +400,7 @@ export default function AdminClient() {
         }
       }
 
-      setStatus("Uploading blob bytes to Shelby storage...");
+      setStatus("Uploading media to Verra storage...");
       setUploadStage("Uploading blob bytes...");
       const form = new FormData();
       form.set("titleId", titleId);
@@ -433,8 +433,8 @@ export default function AdminClient() {
       setUploadStage("Upload completed.");
       setStatus(
         isManifestFile(file.name)
-          ? `HLS manifest uploaded to Shelby: ${body.data.blobKey}`
-          : `Video file uploaded to Shelby: ${body.data.blobKey}`,
+          ? `HLS manifest uploaded to Verra: ${body.data.blobKey}`
+          : `Video file uploaded to Verra: ${body.data.blobKey}`,
       );
       return { blobKey: body.data.blobKey, streamAssetId };
     } catch (e) {
@@ -711,7 +711,7 @@ export default function AdminClient() {
           </div>
 
           <label className="block text-sm font-medium text-white">
-            Upload Lesson Stream to Shelby + Auto Create Course
+            Upload Lesson Stream to Verra + Auto Create Course
             <input
               type="file"
               accept="video/*,.mp4,.webm,.mov,.m3u8"
@@ -730,7 +730,7 @@ export default function AdminClient() {
             <p className="text-xs text-white/70">Selected file: {selectedUploadName}</p>
           ) : null}
           {uploading || uploadStage ? (
-            <p className="text-xs text-cyan-200">{uploadStage || "Uploading to Shelby storage..."}</p>
+            <p className="text-xs text-cyan-200">{uploadStage || "Uploading media to Verra..."}</p>
           ) : null}
 
           <input

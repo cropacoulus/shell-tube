@@ -139,7 +139,7 @@ export default function SignInPage() {
       await ensureWalletNetwork();
       setAddress(walletAccount.address);
 
-      setStatus("Requesting Shelby sign-in challenge...");
+      setStatus("Requesting Verra sign-in challenge...");
       const challengeRes = await fetch("/api/auth/wallet/challenge", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -234,7 +234,7 @@ export default function SignInPage() {
           <p className="app-kicker">Wallet-native entry</p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight">Enter the creator learning network with your Aptos wallet.</h1>
           <p className="mt-4 max-w-xl text-sm leading-7 text-white/68">
-            Shelby Stream treats the wallet as the front door for identity, creator access, and playback authorization. One sign-in unlocks catalog, studio, and audience data.
+            Verra treats the wallet as the front door for identity, creator access, and playback authorization. One sign-in unlocks catalog, studio, and audience data.
           </p>
           <div className="mt-8 grid gap-3">
             <div className="metric-card">
@@ -243,7 +243,7 @@ export default function SignInPage() {
             </div>
             <div className="metric-card">
               <p className="text-xs uppercase tracking-[0.18em] text-white/45">Delivery</p>
-              <p className="mt-2 text-lg font-semibold">Playback and media distribution stay aligned with Shelby-native storage.</p>
+              <p className="mt-2 text-lg font-semibold">Playback and media distribution stay aligned with Verra media delivery on Shelby-backed storage.</p>
             </div>
           </div>
         </section>

@@ -1,6 +1,6 @@
 # Architecture Option B - Cutover Plan
 
-Dokumen ini menerjemahkan [architecture-option-b.md](./architecture-option-b.md) menjadi rencana cutover yang konkret dari codebase saat ini ke runtime **full web3 + event-first + Shelby-native**.
+Dokumen ini menerjemahkan [architecture-option-b.md](./architecture-option-b.md) menjadi rencana cutover yang konkret dari codebase saat ini ke runtime **Verra full web3 + event-first + Shelby-backed media**.
 
 Target akhir:
 

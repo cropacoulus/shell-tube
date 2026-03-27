@@ -6,7 +6,7 @@ Option B diposisikan sebagai arsitektur:
 
 - `full web3 narrative`
 - `event-first`
-- `Shelby-native` untuk blob/media
+- `Verra` dengan blob/media berbasis Shelby
 - `projection-first` untuk query UI
 - `proof-backed` untuk state yang perlu trust tinggi
 

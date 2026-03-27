@@ -139,7 +139,7 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
     setError(null);
     try {
       if (!connected || !currentAddress || !signAndSubmitTransaction) {
-        throw new Error("Connect the same wallet first so the avatar blob can be registered on Shelby L1.");
+        throw new Error("Connect the same wallet first so the Verra avatar blob can be registered on L1.");
       }
       if (currentAddress.toLowerCase() !== initialProfile.userId.toLowerCase()) {
         throw new Error("Connected wallet does not match the signed-in profile.");
@@ -150,7 +150,7 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
       const blobName = `profiles/avatar.${ext}`;
       const blobData = new Uint8Array(await file.arrayBuffer());
 
-      setStatus("Registering avatar blob on Shelby L1...");
+      setStatus("Registering Verra avatar blob on L1...");
       const provider = await createDefaultErasureCodingProvider();
       const commitment = await generateCommitments(provider, blobData);
       const chunksetSize = provider.config.erasure_k * provider.config.chunkSizeBytes;
@@ -219,7 +219,7 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
 
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <section className="app-panel rounded-[2rem] p-6">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             {profile?.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -277,8 +277,8 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
             />
           </label>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button onClick={saveProfile} className="app-primary-button px-5 py-3 text-sm">
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <button onClick={saveProfile} className="app-primary-button w-full px-5 py-3 text-sm sm:w-auto">
               Save profile
             </button>
             {status ? <p className="text-sm text-emerald-300">{status}</p> : null}
@@ -300,8 +300,8 @@ export default function ProfileClient({ initialProfile }: ProfileClientProps) {
             placeholder="Describe the kind of educational content you want to publish."
             className="form-shell mt-4 min-h-32 text-sm"
           />
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button onClick={submitCreatorApplication} className="app-primary-button px-5 py-3 text-sm">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <button onClick={submitCreatorApplication} className="app-primary-button w-full px-5 py-3 text-sm sm:w-auto">
               Submit application
             </button>
             {applicationStatus ? <span className="status-pill">{applicationStatus}</span> : null}

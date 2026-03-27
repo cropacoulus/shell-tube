@@ -204,8 +204,8 @@ export async function POST(req: Request) {
     return jsonError(
       "INTERNAL_ERROR",
       process.env.NODE_ENV === "production"
-        ? "Unable to ingest into Shelby storage"
-        : `Unable to ingest into Shelby storage: ${debugMessage}`,
+        ? "Unable to ingest into Verra storage"
+        : `Unable to ingest into Verra storage: ${debugMessage}`,
       500,
     );
   }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { canModeratePlatform, canViewCreatorAnalytics } from "@/lib/auth/capabilities";
+import { NavbarLinks } from "@/app/_components/navbar-links";
 import { getProfileFromProjection } from "@/lib/projections/profile-read-model";
 import { getProfileRepository } from "@/lib/repositories";
 import { createOptionBConfig } from "@/lib/runtime/option-b-config";
@@ -24,38 +25,39 @@ export default async function StickyNavbar() {
       fallbackRole: auth.role,
     }),
   ]);
+  const navItems = [
+    { href: "/", label: "Home", match: "exact" as const },
+    { href: "/courses", label: "Catalog" },
+    { href: "/dashboard", label: "Watchlist" },
+    { href: "/profile", label: "Profile" },
+    ...(canViewCreatorAnalytics(effectiveRole)
+      ? [
+          { href: "/creator/uploads", label: "Studio" },
+          { href: "/creator/courses", label: "Courses" },
+          { href: "/creator/analytics", label: "Analytics" },
+        ]
+      : []),
+    ...(canModeratePlatform(effectiveRole) ? [{ href: "/admin", label: "Admin" }] : []),
+  ];
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#08111b]/80 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-10">
-        <div className="flex items-center gap-3 md:gap-5">
-          <Link href="/" className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3 md:gap-5">
+          <Link href="/" className="flex shrink-0 items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm font-black text-[#f4a261]">
-              SS
+              VE
             </span>
             <div className="hidden md:block">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#f4a261]">Wallet-native academy</p>
-              <p className="text-sm font-semibold text-white">Shelby Stream</p>
+              <p className="text-sm font-semibold text-white">Verra</p>
             </div>
           </Link>
-
-          <nav className="flex max-w-[60vw] items-center gap-2 overflow-x-auto rounded-full border border-white/10 bg-white/5 px-2 py-1 text-xs whitespace-nowrap text-white/78 md:max-w-none md:gap-3 md:px-3 md:text-sm">
-            <Link href="/" className="rounded-full px-3 py-2 hover:bg-white/10 hover:text-white">Home</Link>
-            <Link href="/courses" className="rounded-full px-3 py-2 hover:bg-white/10 hover:text-white">Catalog</Link>
-            <Link href="/dashboard" className="rounded-full px-3 py-2 hover:bg-white/10 hover:text-white">Watchlist</Link>
-            <Link href="/profile" className="rounded-full px-3 py-2 hover:bg-white/10 hover:text-white">Profile</Link>
-            {canViewCreatorAnalytics(effectiveRole) ? (
-              <>
-                <Link href="/creator/uploads" className="rounded-full px-3 py-2 hover:bg-white/10 hover:text-white">Studio</Link>
-                <Link href="/creator/courses" className="rounded-full px-3 py-2 hover:bg-white/10 hover:text-white">Courses</Link>
-                <Link href="/creator/analytics" className="rounded-full px-3 py-2 hover:bg-white/10 hover:text-white">Analytics</Link>
-              </>
-            ) : null}
-            {canModeratePlatform(effectiveRole) ? <Link href="/admin" className="rounded-full px-3 py-2 hover:bg-white/10 hover:text-white">Admin</Link> : null}
-          </nav>
         </div>
 
         <div className="flex items-center gap-2 md:gap-3">
+          <div className="hidden md:block">
+            <NavbarLinks items={navItems} />
+          </div>
           <span className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65 md:inline-flex">
             {effectiveRole}
           </span>
@@ -73,6 +75,10 @@ export default async function StickyNavbar() {
               Logout
             </button>
           </form>
+        </div>
+
+        <div className="w-full md:hidden">
+          <NavbarLinks items={navItems} />
         </div>
       </div>
     </header>

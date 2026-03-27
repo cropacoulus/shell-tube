@@ -117,7 +117,7 @@ export async function POST(req: Request) {
   if (!body.manifestBlobKey.trim()) {
     return jsonError(
       "INVALID_REQUEST",
-      "Stream blob key is required. Upload video/manifest to Shelby first.",
+      "Stream blob key is required. Upload video or manifest to Verra first.",
       422,
     );
   }

@@ -21,7 +21,7 @@ import { jsonError, jsonOk } from "@/lib/server/http";
 type CreatorContentCreateRequest = {
   title: string;
   synopsis: string;
-  year: number;
+  year?: number;
   categoryId: string;
   heroImageUrl: string;
   cardImageUrl: string;
@@ -47,7 +47,7 @@ function isValidCreate(body: unknown): body is CreatorContentCreateRequest {
   return (
     typeof candidate.title === "string" &&
     typeof candidate.synopsis === "string" &&
-    typeof candidate.year === "number" &&
+    (candidate.year === undefined || typeof candidate.year === "number") &&
     typeof candidate.categoryId === "string" &&
     typeof candidate.heroImageUrl === "string" &&
     typeof candidate.cardImageUrl === "string" &&
@@ -140,13 +140,14 @@ export async function POST(req: Request) {
   }
 
   const createdAt = new Date().toISOString();
+  const courseYear = typeof body.year === "number" ? body.year : new Date().getFullYear();
   const course: FilmCourseRecord = optionB.projectionStoreBackend === "upstash"
     ? {
         id: `course_${crypto.randomUUID().slice(0, 12)}`,
         creatorProfileId: gate.auth.profileId,
         title: body.title,
         synopsis: body.synopsis,
-        year: body.year,
+        year: courseYear,
         categoryId: body.categoryId,
         heroImageUrl: body.heroImageUrl,
         cardImageUrl: body.cardImageUrl,
@@ -157,7 +158,7 @@ export async function POST(req: Request) {
         creatorProfileId: gate.auth.profileId,
         title: body.title,
         synopsis: body.synopsis,
-        year: body.year,
+        year: courseYear,
         categoryId: body.categoryId,
         heroImageUrl: body.heroImageUrl,
         cardImageUrl: body.cardImageUrl,

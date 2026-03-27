@@ -3,8 +3,8 @@ import "./globals.css";
 import AppProviders from "@/app/providers";
 
 export const metadata: Metadata = {
-  title: "Shelby Stream",
-  description: "Wallet-native course streaming for creators, learners, and Web3 distribution.",
+  title: "Verra",
+  description: "Wallet-native course streaming for creators, learners, and Web3 distribution on Verra.",
 };
 
 export default function RootLayout({

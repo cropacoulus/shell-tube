@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { SectionSubnav } from "@/app/_components/section-subnav";
 import StickyNavbar from "@/app/_components/sticky-navbar";
 import { canPublishContent } from "@/lib/auth/capabilities";
 import { getAuthContextFromHeaders } from "@/lib/server/auth";
@@ -27,6 +28,14 @@ export default async function CreatorUploadsPage() {
             The studio now follows a clearer release path: create the shell, attach source media, wait until a watch-ready manifest exists, then make the course public only when playback is actually ready.
           </p>
         </header>
+
+        <SectionSubnav
+          items={[
+            { href: "/creator/uploads", label: "Studio", match: "exact" },
+            { href: "/creator/courses", label: "My Courses" },
+            { href: "/creator/analytics", label: "Analytics" },
+          ]}
+        />
 
         <section className="grid gap-4 md:grid-cols-3">
           <article className="metric-card">

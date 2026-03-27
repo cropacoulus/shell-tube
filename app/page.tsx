@@ -20,9 +20,9 @@ export default async function Home() {
       <section className="border-b border-white/10">
         <div className="mx-auto grid w-full max-w-7xl gap-8 px-6 py-14 md:grid-cols-[1.15fr_0.85fr] md:px-10 md:py-18">
           <div className="space-y-6">
-            <p className="app-kicker">Creator-owned streaming academy</p>
+            <p className="app-kicker">Creator-owned learning platform</p>
             <h1 className="max-w-4xl text-4xl font-semibold leading-[1.05] md:text-6xl">
-              Structured learning, wallet-native access, and Shelby delivery in one platform.
+              Structured learning, wallet-native access, and Verra delivery in one platform.
             </h1>
             <p className="app-copy max-w-2xl text-sm leading-7 md:text-base">
               Build a premium course catalog, publish lessons with proof-aware distribution, and keep creators close to their audience instead of hiding behind generic LMS tooling.
@@ -47,7 +47,7 @@ export default async function Home() {
             <div className="grid gap-3 pt-2 sm:grid-cols-3">
               <div className="metric-card">
                 <p className="text-xs uppercase tracking-[0.2em] text-white/45">Distribution</p>
-                <p className="mt-2 text-lg font-semibold">Shelby-backed media delivery</p>
+                <p className="mt-2 text-lg font-semibold">Verra delivery powered by Shelby</p>
               </div>
               <div className="metric-card">
                 <p className="text-xs uppercase tracking-[0.2em] text-white/45">Identity</p>

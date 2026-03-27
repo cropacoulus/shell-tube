@@ -1,24 +1,28 @@
 type CreatorContentCoreInput = {
   title: string;
   synopsis: string;
-  year: number;
   categoryId: string;
   durationMin: number;
-  maturityRating: string;
 };
 
-export function validateCreatorContentCore(input: CreatorContentCoreInput) {
-  if (!input.title.trim()) return "Course title is required.";
-  if (!input.synopsis.trim()) return "Course synopsis is required.";
-  if (!input.categoryId.trim()) return "Category is required.";
-  if (!input.maturityRating.trim()) return "Audience rating is required.";
-  if (!Number.isFinite(input.year) || input.year < 1900 || input.year > new Date().getFullYear() + 5) {
-    return "Release year is invalid.";
-  }
+export type CreatorContentFieldErrors = Partial<Record<keyof CreatorContentCoreInput, string>>;
+
+export function getCreatorContentFieldErrors(input: CreatorContentCoreInput): CreatorContentFieldErrors {
+  const errors: CreatorContentFieldErrors = {};
+
+  if (!input.title.trim()) errors.title = "Course title is required.";
+  if (!input.synopsis.trim()) errors.synopsis = "Course synopsis is required.";
+  if (!input.categoryId.trim()) errors.categoryId = "Category is required.";
   if (!Number.isFinite(input.durationMin) || input.durationMin <= 0) {
-    return "Lesson duration must be greater than zero.";
+    errors.durationMin = "Lesson duration must be greater than zero.";
   }
-  return null;
+
+  return errors;
+}
+
+export function validateCreatorContentCore(input: CreatorContentCoreInput) {
+  const errors = getCreatorContentFieldErrors(input);
+  return Object.values(errors)[0] ?? null;
 }
 
 export function validateCreatorPublishState(input: {

@@ -161,10 +161,99 @@
     }
   ],
   "mediaAssets": [],
-  "lessonProgress": [],
-  "courseEnrollments": [],
-  "playbackSessions": [],
-  "qoeEvents": [],
+  "lessonProgress": [
+    {
+      "id": "prog_0edf2636",
+      "updatedAt": "2026-03-27T02:33:43.654Z",
+      "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "profileId": "wallet-main",
+      "lessonId": "lesson-vid_bcc291a5-main",
+      "courseId": "vid_bcc291a5",
+      "progressPercent": 98,
+      "lastPositionSec": 30
+    }
+  ],
+  "courseEnrollments": [
+    {
+      "id": "enr_0b33f2b7",
+      "createdAt": "2026-03-27T02:33:12.403Z",
+      "updatedAt": "2026-03-27T02:33:43.900Z",
+      "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "profileId": "wallet-main",
+      "courseId": "vid_bcc291a5",
+      "source": "manual",
+      "active": true
+    }
+  ],
+  "playbackSessions": [
+    {
+      "createdAt": "2026-03-27T02:32:37.562Z",
+      "id": "ps_5fd317a3-c07a-458f-9d4a-7acd4436df7b",
+      "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "profileId": "wallet-main",
+      "courseId": "vid_385e03a6",
+      "lessonId": "lesson-vid_385e03a6-main",
+      "manifestBlobKey": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/titles/comedy-romantic/videos/file_example_MP4_640_3MG.mp4",
+      "entitlementSource": "premium",
+      "playbackToken": "mock_token_679c743c-4475-4503-a681-725f2a6da304",
+      "expiresAt": "2026-03-27T02:42:37.560Z"
+    },
+    {
+      "createdAt": "2026-03-27T02:33:09.334Z",
+      "id": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+      "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "profileId": "wallet-main",
+      "courseId": "vid_bcc291a5",
+      "lessonId": "lesson-vid_bcc291a5-main",
+      "manifestBlobKey": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/titles/bunga-di-taman/videos/file_example_MP4_1280_10MG.mp4",
+      "entitlementSource": "premium",
+      "playbackToken": "mock_token_436f391f-c27e-4753-9287-72d878a8328f",
+      "expiresAt": "2026-03-27T02:43:09.333Z"
+    }
+  ],
+  "qoeEvents": [
+    {
+      "id": "qoe_37069939",
+      "createdAt": "2026-03-27T02:33:14.403Z",
+      "playbackSessionId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+      "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "profileId": "wallet-main",
+      "courseId": "vid_bcc291a5",
+      "lessonId": "lesson-vid_bcc291a5-main",
+      "type": "startup",
+      "eventTs": "2026-03-27T02:33:11.584Z",
+      "positionMs": 0,
+      "deviceId": "web-player"
+    },
+    {
+      "id": "qoe_ffa1f39a",
+      "createdAt": "2026-03-27T02:33:14.403Z",
+      "playbackSessionId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+      "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "profileId": "wallet-main",
+      "courseId": "vid_bcc291a5",
+      "lessonId": "lesson-vid_bcc291a5-main",
+      "type": "rebuffer_end",
+      "eventTs": "2026-03-27T02:33:11.942Z",
+      "positionMs": 2,
+      "peerHitRatio": 0,
+      "deviceId": "web-player"
+    },
+    {
+      "id": "qoe_28654ed5",
+      "createdAt": "2026-03-27T02:33:44.845Z",
+      "playbackSessionId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+      "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "profileId": "wallet-main",
+      "courseId": "vid_bcc291a5",
+      "lessonId": "lesson-vid_bcc291a5-main",
+      "type": "playback_end",
+      "eventTs": "2026-03-27T02:33:42.527Z",
+      "positionMs": 30526,
+      "peerHitRatio": 0,
+      "deviceId": "web-player"
+    }
+  ],
   "creatorPayoutLedger": [],
   "creatorApplications": [],
   "domainEvents": [
@@ -299,6 +388,202 @@
       "version": 1,
       "payload": {
         "courseId": "vid_758f55d1"
+      }
+    },
+    {
+      "id": "evt_9b9f3d70-fca",
+      "type": "playback_session_created",
+      "aggregateType": "playback_session",
+      "aggregateId": "ps_5fd317a3-c07a-458f-9d4a-7acd4436df7b",
+      "occurredAt": "2026-03-27T02:32:37.564Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "playback-session-create:ps_5fd317a3-c07a-458f-9d4a-7acd4436df7b",
+      "version": 1,
+      "payload": {
+        "playbackSessionId": "ps_5fd317a3-c07a-458f-9d4a-7acd4436df7b",
+        "lessonId": "lesson-vid_385e03a6-main",
+        "courseId": "vid_385e03a6",
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "profileId": "wallet-main",
+        "manifestBlobKey": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/titles/comedy-romantic/videos/file_example_MP4_640_3MG.mp4",
+        "entitlementSource": "premium",
+        "expiresAt": "2026-03-27T02:42:37.560Z",
+        "createdAt": "2026-03-27T02:32:37.560Z"
+      }
+    },
+    {
+      "id": "evt_2f575989-ffb",
+      "type": "playback_session_created",
+      "aggregateType": "playback_session",
+      "aggregateId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+      "occurredAt": "2026-03-27T02:33:09.335Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "playback-session-create:ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+      "version": 1,
+      "payload": {
+        "playbackSessionId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+        "lessonId": "lesson-vid_bcc291a5-main",
+        "courseId": "vid_bcc291a5",
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "profileId": "wallet-main",
+        "manifestBlobKey": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2/titles/bunga-di-taman/videos/file_example_MP4_1280_10MG.mp4",
+        "entitlementSource": "premium",
+        "expiresAt": "2026-03-27T02:43:09.333Z",
+        "createdAt": "2026-03-27T02:33:09.333Z"
+      }
+    },
+    {
+      "id": "evt_f669ed1c-633",
+      "type": "progress_checkpoint_recorded",
+      "aggregateType": "progress",
+      "aggregateId": "prog_0edf2636",
+      "occurredAt": "2026-03-27T02:33:12.403Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "progress-checkpoint:0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2:lesson-vid_bcc291a5-main:2026-03-27T02:33:12.401Z",
+      "version": 1,
+      "payload": {
+        "progressId": "prog_0edf2636",
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "profileId": "wallet-main",
+        "lessonId": "lesson-vid_bcc291a5-main",
+        "courseId": "vid_bcc291a5",
+        "progressPercent": 0,
+        "lastPositionSec": 0,
+        "updatedAt": "2026-03-27T02:33:12.401Z"
+      }
+    },
+    {
+      "id": "evt_7a6c06ff-052",
+      "type": "progress_checkpoint_recorded",
+      "aggregateType": "progress",
+      "aggregateId": "prog_0edf2636",
+      "occurredAt": "2026-03-27T02:33:12.485Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "progress-checkpoint:0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2:lesson-vid_bcc291a5-main:2026-03-27T02:33:12.475Z",
+      "version": 1,
+      "payload": {
+        "progressId": "prog_0edf2636",
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "profileId": "wallet-main",
+        "lessonId": "lesson-vid_bcc291a5-main",
+        "courseId": "vid_bcc291a5",
+        "progressPercent": 0,
+        "lastPositionSec": 0,
+        "updatedAt": "2026-03-27T02:33:12.475Z"
+      }
+    },
+    {
+      "id": "evt_8080e9be-0e4",
+      "type": "qoe_event_recorded",
+      "aggregateType": "qoe",
+      "aggregateId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b:2026-03-27T02:33:11.584Z:startup",
+      "occurredAt": "2026-03-27T02:33:14.404Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "qoe-event:ps_d07035bd-c242-483e-b154-f1ea24f2e95b:2026-03-27T02:33:11.584Z:startup:0",
+      "version": 1,
+      "payload": {
+        "playbackSessionId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+        "lessonId": "lesson-vid_bcc291a5-main",
+        "courseId": "vid_bcc291a5",
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "profileId": "wallet-main",
+        "type": "startup",
+        "eventTs": "2026-03-27T02:33:11.584Z",
+        "positionMs": 0,
+        "deviceId": "web-player"
+      }
+    },
+    {
+      "id": "evt_8eb0c1fe-cfc",
+      "type": "qoe_event_recorded",
+      "aggregateType": "qoe",
+      "aggregateId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b:2026-03-27T02:33:11.942Z:rebuffer_end",
+      "occurredAt": "2026-03-27T02:33:14.404Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "qoe-event:ps_d07035bd-c242-483e-b154-f1ea24f2e95b:2026-03-27T02:33:11.942Z:rebuffer_end:2",
+      "version": 1,
+      "payload": {
+        "playbackSessionId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+        "lessonId": "lesson-vid_bcc291a5-main",
+        "courseId": "vid_bcc291a5",
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "profileId": "wallet-main",
+        "type": "rebuffer_end",
+        "eventTs": "2026-03-27T02:33:11.942Z",
+        "positionMs": 2,
+        "peerHitRatio": 0,
+        "deviceId": "web-player"
+      }
+    },
+    {
+      "id": "evt_9f40b0a6-d90",
+      "type": "progress_checkpoint_recorded",
+      "aggregateType": "progress",
+      "aggregateId": "prog_0edf2636",
+      "occurredAt": "2026-03-27T02:33:26.912Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "progress-checkpoint:0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2:lesson-vid_bcc291a5-main:2026-03-27T02:33:26.876Z",
+      "version": 1,
+      "payload": {
+        "progressId": "prog_0edf2636",
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "profileId": "wallet-main",
+        "lessonId": "lesson-vid_bcc291a5-main",
+        "courseId": "vid_bcc291a5",
+        "progressPercent": 49,
+        "lastPositionSec": 15,
+        "updatedAt": "2026-03-27T02:33:26.876Z"
+      }
+    },
+    {
+      "id": "evt_9081d723-329",
+      "type": "progress_checkpoint_recorded",
+      "aggregateType": "progress",
+      "aggregateId": "prog_0edf2636",
+      "occurredAt": "2026-03-27T02:33:43.945Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "progress-checkpoint:0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2:lesson-vid_bcc291a5-main:2026-03-27T02:33:43.654Z",
+      "version": 1,
+      "payload": {
+        "progressId": "prog_0edf2636",
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "profileId": "wallet-main",
+        "lessonId": "lesson-vid_bcc291a5-main",
+        "courseId": "vid_bcc291a5",
+        "progressPercent": 98,
+        "lastPositionSec": 30,
+        "updatedAt": "2026-03-27T02:33:43.654Z"
+      }
+    },
+    {
+      "id": "evt_1948a35d-e1c",
+      "type": "qoe_event_recorded",
+      "aggregateType": "qoe",
+      "aggregateId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b:2026-03-27T02:33:42.527Z:playback_end",
+      "occurredAt": "2026-03-27T02:33:44.857Z",
+      "actorUserId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+      "actorRole": "creator",
+      "idempotencyKey": "qoe-event:ps_d07035bd-c242-483e-b154-f1ea24f2e95b:2026-03-27T02:33:42.527Z:playback_end:30526",
+      "version": 1,
+      "payload": {
+        "playbackSessionId": "ps_d07035bd-c242-483e-b154-f1ea24f2e95b",
+        "lessonId": "lesson-vid_bcc291a5-main",
+        "courseId": "vid_bcc291a5",
+        "userId": "0xf646481ea1f0e6d0ab545ce15e7a567d25d49786606fdcaf680e2f37e520c7d2",
+        "profileId": "wallet-main",
+        "type": "playback_end",
+        "eventTs": "2026-03-27T02:33:42.527Z",
+        "positionMs": 30526,
+        "peerHitRatio": 0,
+        "deviceId": "web-player"
       }
     }
   ]
